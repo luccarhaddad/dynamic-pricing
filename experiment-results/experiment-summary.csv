@@ -1,0 +1,2 @@
+scenario,failure_rate,network_delay,burst_multiplier,avg_surge,min_surge,max_surge,total_events
+baseline,,,,1.01848,1,2.3,     368

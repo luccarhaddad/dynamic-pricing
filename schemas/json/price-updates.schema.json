@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pricing.local/schemas/price-updates.json",
+  "title": "Price Update",
+  "description": "Schema for price update events",
+  "type": "object",
+  "properties": {
+    "zone_id": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64,
+      "description": "Geographic zone identifier"
+    },
+    "window_start": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Window start timestamp in epoch milliseconds"
+    },
+    "window_end": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Window end timestamp in epoch milliseconds"
+    },
+    "demand": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Ride requests count in window"
+    },
+    "supply": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Available drivers count in window"
+    },
+    "ratio": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Demand/supply ratio"
+    },
+    "surge_multiplier": {
+      "type": "number",
+      "minimum": 1.0,
+      "maximum": 3.0,
+      "description": "Price surge multiplier"
+    },
+    "ts_compute": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Computation timestamp in epoch milliseconds"
+    },
+    "reference_fare": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Optional reference fare for zone"
+    }
+  },
+  "required": [
+    "zone_id",
+    "window_start",
+    "window_end",
+    "demand",
+    "supply",
+    "ratio",
+    "surge_multiplier",
+    "ts_compute"
+  ],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "zone_id": 15,
+      "window_start": 1703098800000,
+      "window_end": 1703098815000,
+      "demand": 12,
+      "supply": 8,
+      "ratio": 1.5,
+      "surge_multiplier": 1.3,
+      "ts_compute": 1703098816000,
+      "reference_fare": 8.50
+    }
+  ]
+}

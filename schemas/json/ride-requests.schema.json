@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pricing.local/schemas/ride-requests.json",
+  "title": "Ride Request",
+  "description": "Schema for ride request events",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier"
+    },
+    "rider_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Rider identifier"
+    },
+    "zone_id": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64,
+      "description": "Geographic zone identifier"
+    },
+    "est_distance_km": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Estimated distance in kilometers"
+    },
+    "est_duration_min": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Estimated duration in minutes"
+    },
+    "payment_type": {
+      "type": "string",
+      "enum": [
+        "CARD",
+        "PIX",
+        "CASH"
+      ],
+      "description": "Payment method"
+    },
+    "ts_event": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Event timestamp in epoch milliseconds"
+    }
+  },
+  "required": [
+    "event_id",
+    "rider_id",
+    "zone_id",
+    "est_distance_km",
+    "est_duration_min",
+    "payment_type",
+    "ts_event"
+  ],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "event_id": "550e8400-e29b-41d4-a716-446655440000",
+      "rider_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+      "zone_id": 15,
+      "est_distance_km": 8.5,
+      "est_duration_min": 18.0,
+      "payment_type": "CARD",
+      "ts_event": 1703098800000
+    }
+  ]
+}

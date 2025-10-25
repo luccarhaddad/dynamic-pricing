@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: event-generator
+  kafka:
+    bootstrap-servers: ${BOOTSTRAP_SERVERS:localhost:19092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.IntegerSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+app:
+  zones: 16
+  heartbeat-interval-ms: ${HEARTBEAT_INTERVAL:1000}  # 1 second updates - fast and dynamic
+  rides-lambda: ${RIDES_LAMBDA:10.0}  # Higher demand - more ride requests
+  drivers-per-zone: 6  # Reduced supply - more surge variation
+
+experiment:
+  deterministic: ${DETERMINISTIC:true}
+  seed: ${EXPERIMENT_SEED:12345}
+  scenario: ${SCENARIO:normal}
+  failure-rate: ${FAILURE_RATE:0.0}
+  network-delay-ms: ${NETWORK_DELAY_MS:0}
+  burst-multiplier: ${BURST_MULTIPLIER:1.0}
+
+logging:
+  level:
+    com.pricing: DEBUG
+    org.apache.kafka: WARN
