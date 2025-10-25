@@ -697,26 +697,12 @@ The system successfully demonstrates:
 
 ## 12. References
 
-### Academic Papers
-
-1. Chen, M. K., & Sheldon, M. (2016). "Dynamic Pricing in a Labor Market: Surge Pricing and Flexible Work on the Uber Platform." *EC '16: Proceedings of the 2016 ACM Conference on Economics and Computation*.
-
-2. Carbone, P., Katsifodimos, A., Ewen, S., Markl, V., Haridi, S., & Tzoumas, K. (2015). "Apache Flink: Stream and Batch Processing in a Single Engine." *IEEE Data Engineering Bulletin*.
-
-3. Kreps, J., Narkhede, N., & Rao, J. (2011). "Kafka: A Distributed Messaging System for Log Processing." *NetDB '11*.
-
 ### Technical Documentation
 
 1. Apache Flink Documentation: https://flink.apache.org/docs/
 2. Apache Kafka Documentation: https://kafka.apache.org/documentation/
 3. Spring Boot Reference: https://docs.spring.io/spring-boot/docs/current/reference/html/
 4. PostgreSQL Documentation: https://www.postgresql.org/docs/
-
-### Industry Resources
-
-1. Uber Engineering Blog: "Uber's Real-Time Data Infrastructure"
-2. Netflix Tech Blog: "Keystone Real-time Stream Processing Platform"
-3. Martin Kleppmann: "Designing Data-Intensive Applications" (O'Reilly, 2017)
 
 ---
 
@@ -790,23 +776,13 @@ This project is developed for academic purposes as part of university coursework
 
 ## Authors & Acknowledgments
 
-**Academic Institution**: [Your University Name]  
-**Course**: [Course Name and Code]  
-**Semester**: [Academic Period]
+**Academic Institution**: Instituto Tecnológico de Aeronáutica (ITA)
+**Course**: Computer Engineering
 
 **Acknowledgments**:
 - Apache Software Foundation for Flink and Kafka
 - Spring team for the excellent Spring Boot framework
 - PostgreSQL Global Development Group
-
----
-
-## Contact
-
-For academic inquiries or collaboration:
-- **Email**: [Your Academic Email]
-- **Repository**: [Repository URL]
-- **Documentation**: See `/docs` directory for additional resources
 
 ---
 
