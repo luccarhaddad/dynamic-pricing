@@ -1,13 +1,29 @@
-# Gradle
+###############################################################################
+# Dynamic Pricing System - .gitignore
+###############################################################################
+
+###############################################################################
+# Build Outputs & Gradle
+###############################################################################
 .gradle/
 build/
 out/
+bin/
+target/
 gradle-app.setting
-!gradle-wrapper.jar
-!gradle-wrapper.properties
-!gradle/wrapper/gradle-wrapper.jar
 
+# Keep Gradle wrapper
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# Gradle daemon
+.gradle-daemon/
+daemon/
+
+###############################################################################
 # Java/JVM
+###############################################################################
 *.class
 *.jar
 *.war
@@ -15,37 +31,303 @@ gradle-app.setting
 *.nar
 hs_err_pid*
 replay_pid*
-*.log
 
-# IDE
+# Package Files
+!gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# JVM Crash Logs
+hs_err_pid*.log
+
+###############################################################################
+# IDEs
+###############################################################################
+
+# IntelliJ IDEA
 .idea/
-.vscode/
 *.iml
 *.ipr
 *.iws
+.idea_modules/
+
+# Eclipse
 .classpath
 .project
 .settings/
-bin/
+*.launch
+.metadata
 
-# OS
+# VSCode
+.vscode/
+.code-workspace
+
+# NetBeans
+nbproject/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+###############################################################################
+# Operating System
+###############################################################################
+
+# macOS
 .DS_Store
-Thumbs.db
+.AppleDouble
+.LSOverride
+._*
 
-# Temporary
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+###############################################################################
+# Application Logs & Runtime
+###############################################################################
+logs/
+*.log
+*.log.*
+*.pid
+
+# Keep logs directory structure but ignore contents
+!logs/.gitkeep
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+###############################################################################
+# Temporary Files
+###############################################################################
+tmp/
+temp/
 *.tmp
 *.bak
 *.swp
+*.swo
+*.orig
+*~
+.*.sw?
+
+###############################################################################
+# Experiment Results & Data
+###############################################################################
+experiment-results/
+data/
+*.csv
+!schemas/**/*.csv
+
+# Keep directory structure but ignore generated files
+!experiment-results/.gitkeep
+
+###############################################################################
+# Configuration Overrides
+###############################################################################
+
+# Local configuration files (keep templates, ignore local overrides)
+application-local.yml
+application-local.properties
+**/application-local.yml
+**/application-local.properties
+
+# Environment-specific configs
+.env
+.env.local
+.env.*.local
+
+###############################################################################
+# Docker
+###############################################################################
+.env
+docker-compose.override.yml
+
+# Docker volumes
+volumes/
+.docker/
+
+###############################################################################
+# Python (Frontend)
+###############################################################################
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Python distributions
+*.egg
+*.egg-info/
+dist/
+build/
+wheels/
+pip-wheel-metadata/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Python virtual environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+###############################################################################
+# Node.js (if used for frontend tooling)
+###############################################################################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+###############################################################################
+# Flink
+###############################################################################
+flink-*.log
+flink-*.out
+
+# Flink checkpoints and savepoints
+checkpoints/
+savepoints/
+
+###############################################################################
+# Kafka
+###############################################################################
+kafka-logs/
+zookeeper-data/
+
+###############################################################################
+# Database
+###############################################################################
+*.db
+*.sqlite
+*.sqlite3
+
+# PostgreSQL
+*.pgsql
+*.backup
+
+###############################################################################
+# Security & Secrets
+###############################################################################
+*.key
+*.pem
+*.p12
+*.jks
+secrets/
+credentials/
+.credentials
+
+# SSH keys
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+
+###############################################################################
+# Monitoring & Profiling
+###############################################################################
+*.hprof
+*.prof
+*.nps
+
+# JProfiler
+*.jps
+
+# YourKit
+*.snapshot
+
+###############################################################################
+# Testing
+###############################################################################
+test-output/
+test-results/
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+###############################################################################
+# Documentation Build
+###############################################################################
+site/
+_site/
+.jekyll-cache/
+.bundle/
+
+###############################################################################
+# Backup Files
+###############################################################################
+*.backup
+*.old
 *.orig
 *~
 
-# Application specific
-logs/
-tmp/
-data/
-*.pid
-application-local.properties
-application-local.yml
+###############################################################################
+# Package Manager Locks (optional - uncomment if you want to ignore)
+###############################################################################
+# gradle.lockfile
+# package-lock.json
+# yarn.lock
+# Pipfile.lock
 
-# Docker
-.env
+###############################################################################
+# Keep Important Files
+###############################################################################
+
+# Keep schema files
+!schemas/**/*.json
+!schemas/**/*.avro
+
+# Keep documentation
+!*.md
+!docs/**/*
+
+# Keep scripts
+!scripts/**/*.sh
+!infra/**/*.sh
+
+# Keep configuration templates
+!**/application.yml
+!**/application.properties
+!**/docker-compose.yml
+
+###############################################################################
+# Custom Project-Specific
+###############################################################################
+
+# Experiment outputs
+experiment-*.log
+metrics-*.csv
+baseline-*.log
+
+# Generated reports
+reports/
+*.html
+!**/src/**/*.html
+!frontend/**/*.html
+
+# Compiled shadow/uber jars (keep source)
+*-all.jar
+*-uber.jar
+!flink-pricing-job/build/libs/.gitkeep

@@ -7,10 +7,11 @@ A real-time dynamic pricing system for ride-sharing built with Apache Flink, Kaf
 Calculates surge pricing in real-time based on supply (available drivers) and demand (ride requests) across 16 geographic zones:
 
 1. **Event Generator** simulates ride requests and driver heartbeats
-2. **Apache Flink** processes streams in 15-second windows
-3. **Pricing Algorithm** calculates surge multipliers (1.0x - 3.0x)
-4. **REST API** provides current prices, historical data, and real-time streams
-5. **PostgreSQL** stores pricing history and configurations
+2. **Apache Flink** processes streams in 3-second windows
+3. **Pricing Algorithm** calculates surge multipliers (1.0x - 7.0x)
+4. **REST API** provides current prices, historical data, and real-time SSE streams
+5. **Frontend Dashboard** displays real-time pricing visualization
+6. **PostgreSQL** stores pricing history and configurations
 
 ---
 
@@ -19,12 +20,13 @@ Calculates surge pricing in real-time based on supply (available drivers) and de
 ### Prerequisites
 - Java 17+
 - Docker & Docker Compose
-- Ports: 5432, 8080, 8081, 8082, 9093, 19092
+- Python 3 (for frontend)
+- Ports: 3000, 5432, 8080, 8081, 8082, 9093, 19092
 
 ### Start the System
 
 ```bash
-./start-all.sh
+./scripts/start.sh
 ```
 
 Wait ~1-2 minutes for everything to start up.
@@ -32,8 +34,12 @@ Wait ~1-2 minutes for everything to start up.
 ### Verify System is Working
 
 ```bash
-./verify-system.sh
+./scripts/verify.sh
 ```
+
+### Access the Dashboard
+
+Open http://localhost:3000 to view the real-time pricing dashboard!
 
 ### Test the API
 
@@ -42,7 +48,7 @@ Wait ~1-2 minutes for everything to start up.
 curl http://localhost:8081/api/v1/zones/1/price | jq
 
 # Stream real-time price updates (Ctrl+C to stop)
-curl -N http://localhost:8081/api/v1/zones/1/stream
+curl -N http://localhost:8081/api/v1/zones/all/stream
 
 # Get historical pricing data
 curl "http://localhost:8081/api/v1/zones/1/history" | jq
@@ -51,14 +57,14 @@ curl "http://localhost:8081/api/v1/zones/1/history" | jq
 ### Stop the System
 
 ```bash
-./stop-all.sh
+./scripts/stop.sh
 ```
 
 ### Run Experiments
 
 ```bash
 # Run deterministic experiments with different failure scenarios
-./run-experiment.sh
+./scripts/experiment.sh
 ```
 
 This will run 5 experiments:
@@ -138,7 +144,11 @@ Response:
 
 ### Stream Real-Time Updates (SSE)
 ```bash
+# Single zone
 GET /api/v1/zones/{zoneId}/stream
+
+# All zones (recommended)
+GET /api/v1/zones/all/stream
 ```
 
 ### Get Historical Data
@@ -186,13 +196,13 @@ if (demand/supply > 4.0)   → 2.5x - 3.0x  (capped at 3.0x)
 
 ### Simulation Parameters
 
-Edit `services/event-generator/src/main/resources/application.yml`:
+Edit `services/event-generator/src/main/resources/application-local.yml`:
 ```yaml
 app:
   zones: 16                    # Number of geographic zones
-  drivers-per-zone: 15         # Drivers per zone
-  heartbeat-interval-ms: 4000  # How often drivers report location
-  rides-lambda: 0.6            # Poisson rate for ride requests
+  drivers-per-zone: 6          # Drivers per zone
+  heartbeat-interval-ms: 1000  # How often drivers report location (1 second)
+  rides-lambda: 10.0           # Poisson rate for ride requests (high demand)
 
 experiment:
   deterministic: true          # Enable deterministic mode for experiments
@@ -201,6 +211,11 @@ experiment:
   failure-rate: 0.0            # Simulated failure rate (0.0-1.0)
   network-delay-ms: 0          # Artificial network delay
   burst-multiplier: 1.0        # Traffic burst multiplier
+```
+
+Edit `flink-pricing-job/src/main/java/com/pricing/flink/PricingJobMain.java`:
+```java
+private static final int PROCESSING_TIME_WINDOW = 3;  // 3 seconds - fast updates!
 ```
 
 ---
@@ -239,15 +254,22 @@ dynamic-pricing/
 │           ├── entity/                  # JPA entities
 │           └── service/                 # Business logic
 │
+├── frontend/
+│   ├── index.html              # Real-time dashboard
+│   └── server.py               # Frontend web server
+│
 ├── infra/
 │   ├── docker-compose.yml      # Infrastructure setup
 │   ├── init-db.sql             # Database schema
 │   └── reset-topics.sh         # Topic creation script
 │
-├── schemas/json/               # JSON schemas
-├── start-all.sh                # Start entire system
-├── stop-all.sh                 # Stop entire system
-└── verify-system.sh            # Health check
+├── scripts/
+│   ├── start.sh                # Start entire system
+│   ├── stop.sh                 # Stop entire system
+│   ├── verify.sh               # Health check
+│   └── experiment.sh           # Run experiments
+│
+└── schemas/json/               # JSON schemas
 ```
 
 ---
@@ -297,9 +319,9 @@ SELECT * FROM fare_config WHERE zone_id = 1;
 
 ```bash
 # Clean everything and restart
-./stop-all.sh
+./scripts/stop.sh
 docker compose -f infra/docker-compose.yml down -v
-./start-all.sh
+./scripts/start.sh
 ```
 
 ### Kafka Issues
@@ -317,8 +339,9 @@ docker compose up -d
 ### No Price Updates
 
 1. Check Flink logs: `tail -f logs/flink-job.log`
-2. Verify events flowing: `./verify-system.sh`
+2. Verify events flowing: `./scripts/verify.sh`
 3. Check Kafka consumer lag in Kafka UI: http://localhost:8080
+4. Check frontend console (F12) for SSE connection status
 
 ### Database Connection Issues
 
@@ -343,11 +366,12 @@ The system includes 16 zones divided into 4 types:
 
 ## 📈 Performance
 
-- **Latency**: Sub-second pricing updates (typically 200-500ms)
+- **Latency**: Real-time pricing updates (3 seconds)
 - **Throughput**: ~10,000 events/second with default config
-- **Window Size**: 15 seconds
+- **Window Size**: 3 seconds (fast updates)
 - **Parallelism**: 4 (Flink)
-- **Event Rate**: ~960 heartbeats every 4s + variable ride requests
+- **Event Rate**: ~96 heartbeats/second + ~10 ride requests/second per zone
+- **Update Frequency**: Frontend updates every 3 seconds via SSE
 
 ---
 
@@ -391,10 +415,10 @@ This is a demonstration project. For production use, consider:
 
 If you encounter issues:
 
-1. Run `./verify-system.sh` to identify problem areas
+1. Run `./scripts/verify.sh` to identify problem areas
 2. Check logs in `logs/` directory
 3. Review **[RUNNING.md](RUNNING.md)** for detailed troubleshooting
-4. Check **[KAFKA_FIXES_SUMMARY.md](KAFKA_FIXES_SUMMARY.md)** for Kafka issues
+4. Visit the frontend at http://localhost:3000 to see real-time status
 
 ---
 

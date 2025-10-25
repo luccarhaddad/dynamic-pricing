@@ -5,7 +5,7 @@
 
 set -e
 
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Colors
@@ -81,7 +81,7 @@ run_experiment() {
     cleanup_existing_processes
     
     # Stop any running services
-    ./stop-all.sh > /dev/null 2>&1 || true
+    ./scripts/stop.sh > /dev/null 2>&1 || true
     sleep 2
     
     # Ensure Docker containers are completely down
