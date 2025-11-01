@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 @Service
 public class PricingService {
@@ -129,7 +131,8 @@ public class PricingService {
         if (fromTimestamp != null || toTimestamp != null) {
             metrics = metricsRepository.findByZoneIdAndTimeRange(zoneId, from, to);
         } else {
-            metrics = metricsRepository.findRecentByZoneId(zoneId, 100);
+            Pageable pageable = PageRequest.of(0, 100);
+            metrics = metricsRepository.findRecentByZoneId(zoneId, pageable);
             if (!metrics.isEmpty()) {
                 from = metrics.get(metrics.size() - 1).getWindowStart();
                 to = metrics.get(0).getWindowEnd();
@@ -149,6 +152,12 @@ public class PricingService {
                 .collect(Collectors.toList());
 
         return new ZoneHistoryResponse(zoneId, from, to, windowMetrics);
+    }
+
+    public List<ZoneWindowMetrics> getRecentAuditRecords(int limit) {
+        logger.debug("Getting recent audit records, limit: {}", limit);
+        Pageable pageable = PageRequest.of(0, limit);
+        return metricsRepository.findRecentAllZones(pageable);
     }
 
     private BigDecimal calculateReferenceFare(Integer zoneId, Double distanceKm, Double durationMin) {

@@ -3,6 +3,7 @@ package com.pricing.api.controller;
 import com.pricing.api.dto.QuoteRequest;
 import com.pricing.api.dto.ZoneHistoryResponse;
 import com.pricing.api.dto.ZonePriceResponse;
+import com.pricing.api.entity.ZoneWindowMetrics;
 import com.pricing.api.service.PricingService;
 import com.pricing.api.service.StreamingService;
 import jakarta.validation.Valid;
@@ -11,6 +12,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -94,6 +100,41 @@ public class PricingController {
             return ResponseEntity.ok(emitter);
         } catch (Exception e) {
             logger.error("Error creating SSE stream for all zones: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/audit")
+    public ResponseEntity<?> getAuditRecords(
+            @RequestParam(required = false, defaultValue = "50") Integer limit) {
+        logger.info("GET /audit?limit={}", limit);
+
+        try {
+            List<ZoneWindowMetrics> records = 
+                pricingService.getRecentAuditRecords(limit);
+            
+            List<Map<String, Object>> auditData = records.stream()
+                .map(m -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("zoneId", m.getZoneId());
+                    map.put("windowStart", m.getWindowStart().toString());
+                    map.put("windowEnd", m.getWindowEnd().toString());
+                    map.put("demand", m.getDemand());
+                    map.put("supply", m.getSupply());
+                    map.put("ratio", m.getRatio().doubleValue());
+                    map.put("surgeMultiplier", m.getSurgeMultiplier().doubleValue());
+                    map.put("tsCompute", m.getTsCompute().toString());
+                    return map;
+                })
+                .collect(Collectors.toList());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("records", auditData);
+            response.put("count", auditData.size());
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error getting audit records: {}", e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
     }

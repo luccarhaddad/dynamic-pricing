@@ -32,6 +32,27 @@ services:
         networks:
             - pricing-network
 
+    kafka-init:
+        image: apache/kafka:3.9.0
+        container_name: kafka-init
+        depends_on:
+            kafka:
+                condition: service_healthy
+        entrypoint: ["/bin/sh"]
+        command:
+            - -c
+            - |
+                echo "Creating Kafka topics..."
+                sleep 5
+                /opt/kafka/bin/kafka-topics.sh --create --bootstrap-server kafka:9092 --topic ride-requests --partitions 16 --replication-factor 1 --config cleanup.policy=delete --config retention.ms=3600000 || echo "Topic ride-requests might already exist"
+                /opt/kafka/bin/kafka-topics.sh --create --bootstrap-server kafka:9092 --topic driver-heartbeats --partitions 16 --replication-factor 1 --config cleanup.policy=delete --config retention.ms=3600000 || echo "Topic driver-heartbeats might already exist"
+                /opt/kafka/bin/kafka-topics.sh --create --bootstrap-server kafka:9092 --topic price-updates --partitions 16 --replication-factor 1 --config cleanup.policy=delete --config retention.ms=86400000 || echo "Topic price-updates might already exist"
+                echo "Topics created!"
+                /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+        networks:
+            - pricing-network
+        restart: "no"
+
     postgres:
         image: postgres:16
         container_name: postgres
@@ -67,6 +88,8 @@ services:
         depends_on:
             kafka:
                 condition: service_healthy
+            kafka-init:
+                condition: service_completed_successfully
         networks:
             - pricing-network
         restart: unless-stopped
@@ -91,6 +114,8 @@ services:
                 condition: service_healthy
             kafka:
                 condition: service_healthy
+            kafka-init:
+                condition: service_completed_successfully
         networks:
             - pricing-network
         restart: unless-stopped
@@ -105,6 +130,8 @@ services:
         depends_on:
             kafka:
                 condition: service_healthy
+            kafka-init:
+                condition: service_completed_successfully
             event-generator:
                 condition: service_started
         networks:

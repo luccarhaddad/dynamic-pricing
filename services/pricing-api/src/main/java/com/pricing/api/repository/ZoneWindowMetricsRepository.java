@@ -2,6 +2,7 @@ package com.pricing.api.repository;
 
 import com.pricing.api.entity.ZoneWindowMetrics;
 import com.pricing.api.entity.ZoneWindowMetricsId;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,9 +26,12 @@ public interface ZoneWindowMetricsRepository extends JpaRepository<ZoneWindowMet
     List<ZoneWindowMetrics> findByZoneIdOrderByWindowStartDesc(@Param("zoneId") Integer zoneId);
 
     @Query("SELECT m FROM ZoneWindowMetrics m WHERE m.zoneId = :zoneId " +
-            "ORDER BY m.windowStart DESC LIMIT :limit")
+            "ORDER BY m.windowStart DESC")
     List<ZoneWindowMetrics> findRecentByZoneId(
             @Param("zoneId") Integer zoneId,
-            @Param("limit") int limit
+            Pageable pageable
     );
+
+    @Query("SELECT m FROM ZoneWindowMetrics m ORDER BY m.tsCompute DESC")
+    List<ZoneWindowMetrics> findRecentAllZones(Pageable pageable);
 }

@@ -5,6 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dynamic Pricing Dashboard</title>
     <style>
+        :root {
+            /* Color Palette */
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --background: #f8fafc;
+            --surface: #ffffff;
+            --surface-elevated: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            
+            /* Spacing */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+            
+            /* Typography */
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,218 +47,112 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            font-family: var(--font-sans);
+            background: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
+            max-width: 100%;
+            margin: 0;
+            padding: var(--spacing-lg);
+            width: 100%;
         }
 
+        /* Header */
         .header {
-            text-align: center;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
-            margin-bottom: 30px;
+            padding: var(--spacing-lg);
+            border-radius: 16px;
+            margin-bottom: var(--spacing-lg);
+            box-shadow: var(--shadow-lg);
         }
 
         .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-sm);
+            letter-spacing: -0.02em;
         }
 
         .header p {
-            font-size: 1.1rem;
+            font-size: 1rem;
             opacity: 0.9;
+            font-weight: 400;
         }
 
+        /* Status Bar */
         .status-bar {
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
-            color: white;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: var(--spacing-md);
+            box-shadow: var(--shadow-sm);
         }
 
         .status-item {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: var(--spacing-sm);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .status-item strong {
+            color: var(--text-primary);
+            font-weight: 600;
         }
 
         .status-indicator {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
-            animation: pulse 2s infinite;
+            flex-shrink: 0;
         }
 
         .status-indicator.connected {
-            background: #4CAF50;
+            background: var(--success);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+            animation: pulse 2s infinite;
         }
 
         .status-indicator.disconnected {
-            background: #f44336;
+            background: var(--danger);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
         }
 
-        .zones-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .zone-card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .zone-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
-        }
-
-        .zone-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .zone-id {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #333;
-        }
-
-        .zone-type {
-            background: #e3f2fd;
-            color: #1976d2;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-
-        .zone-type.downtown {
-            background: #ffebee;
-            color: #c62828;
-        }
-
-        .zone-type.urban {
-            background: #e8f5e8;
-            color: #2e7d32;
-        }
-
-        .zone-type.suburban {
-            background: #fff3e0;
-            color: #ef6c00;
-        }
-
-        .zone-type.airport {
-            background: #f3e5f5;
-            color: #7b1fa2;
-        }
-
-        .price-display {
-            text-align: center;
-            margin: 20px 0;
-        }
-
-        .surge-multiplier {
-            font-size: 3rem;
-            font-weight: bold;
-            margin-bottom: 10px;
-            transition: all 0.5s ease;
-        }
-
-        .surge-multiplier.increase {
-            color: #4CAF50;
-            animation: blinkGreen 1s ease-in-out;
-        }
-
-        .surge-multiplier.decrease {
-            color: #f44336;
-            animation: blinkRed 1s ease-in-out;
-        }
-
-        .surge-multiplier.no-change {
-            color: #333;
-        }
-
-        .surge-label {
-            font-size: 1rem;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .metrics {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-top: 20px;
-        }
-
-        .metric {
-            text-align: center;
-            padding: 10px;
-            background: rgba(0,0,0,0.05);
-            border-radius: 8px;
-        }
-
-        .metric-value {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #333;
-        }
-
-        .metric-label {
-            font-size: 0.8rem;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .last-updated {
-            text-align: center;
-            color: #666;
-            font-size: 0.9rem;
-            margin-top: 15px;
-        }
-
+        /* Controls */
         .controls {
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
-            color: white;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+            box-shadow: var(--shadow-sm);
         }
 
         .controls h3 {
-            margin-bottom: 15px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-md);
         }
 
         .control-group {
             display: flex;
-            gap: 15px;
+            gap: var(--spacing-lg);
             flex-wrap: wrap;
             align-items: center;
         }
@@ -231,88 +160,466 @@
         .control-group label {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: var(--spacing-sm);
             cursor: pointer;
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            user-select: none;
         }
 
         .control-group input[type="checkbox"] {
             width: 18px;
             height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
         }
 
-        .control-group button {
-            background: rgba(255,255,255,0.2);
-            border: 1px solid rgba(255,255,255,0.3);
+        .btn {
+            background: var(--primary);
             color: white;
-            padding: 8px 16px;
+            border: none;
+            padding: var(--spacing-sm) var(--spacing-md);
             border-radius: 8px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
         }
 
-        .control-group button:hover {
-            background: rgba(255,255,255,0.3);
+        .btn:hover {
+            background: var(--primary-dark);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
         }
 
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-
-        @keyframes blinkGreen {
-            0%, 100% { background-color: transparent; }
-            50% { background-color: rgba(76, 175, 80, 0.2); }
-        }
-
-        @keyframes blinkRed {
-            0%, 100% { background-color: transparent; }
-            50% { background-color: rgba(244, 67, 54, 0.2); }
-        }
-
-        .loading {
-            text-align: center;
-            color: white;
-            font-size: 1.2rem;
-            margin: 50px 0;
-        }
-
-        .error {
-            background: rgba(244, 67, 54, 0.1);
-            border: 1px solid rgba(244, 67, 54, 0.3);
-            color: #f44336;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-            text-align: center;
+        .btn:active {
+            transform: translateY(0);
         }
 
         .experiment-status {
             display: flex;
-            gap: 20px;
+            gap: var(--spacing-lg);
             flex-wrap: wrap;
-            margin-top: 10px;
+            margin-top: var(--spacing-md);
         }
 
         .experiment-status .status-item {
-            background: rgba(255,255,255,0.15);
-            padding: 10px 15px;
+            background: var(--border-light);
+            padding: var(--spacing-sm) var(--spacing-md);
             border-radius: 8px;
-            font-size: 0.95rem;
+            font-size: 0.875rem;
         }
 
-        @media (max-width: 768px) {
+        /* Zones Grid */
+        /* Two-column layout */
+        .dashboard-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .zones-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: var(--spacing-md);
+        }
+
+        /* Audit Section */
+        .audit-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .audit-header {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .audit-header h2 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .audit-header p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .audit-table-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            max-height: 50vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .audit-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .audit-table thead {
+            background: var(--border-light);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .audit-table th {
+            padding: var(--spacing-md);
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .audit-table tbody {
+            display: block;
+            max-height: calc(50vh - 50px);
+            overflow-y: auto;
+        }
+
+        .audit-table thead tr,
+        .audit-table tbody tr {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        .audit-table td {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--border-light);
+            color: var(--text-primary);
+        }
+
+        .audit-table tbody tr:hover {
+            background: var(--border-light);
+        }
+
+        .audit-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .zone-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: var(--border-light);
+            color: var(--text-primary);
+        }
+
+        .surge-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .surge-badge.high {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .surge-badge.medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .surge-badge.normal {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .timestamp {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .no-audit-data {
+            padding: var(--spacing-2xl);
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .zone-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: var(--spacing-md);
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .zone-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--border);
+            transition: background 0.2s ease;
+        }
+
+        .zone-card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .zone-card:hover::before {
+            background: var(--primary);
+        }
+
+        .zone-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .zone-id {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .zone-type {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .zone-type.downtown {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .zone-type.urban {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .zone-type.suburban {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .zone-type.airport {
+            background: #ede9fe;
+            color: #6b21a8;
+        }
+
+        .price-display {
+            text-align: center;
+            margin: var(--spacing-md) 0;
+        }
+
+        .surge-multiplier {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-xs);
+            transition: all 0.3s ease;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.03em;
+        }
+
+        .surge-multiplier.increase {
+            color: var(--danger);
+        }
+
+        .surge-multiplier.decrease {
+            color: var(--success);
+            animation: blinkGreen 1s ease-in-out;
+        }
+
+        .surge-multiplier.no-change {
+            color: var(--text-primary);
+        }
+
+        .surge-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-md);
+            padding-top: var(--spacing-md);
+            border-top: 1px solid var(--border-light);
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .last-updated {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: var(--spacing-sm);
+            padding-top: var(--spacing-sm);
+            border-top: 1px solid var(--border-light);
+        }
+
+        /* Loading & Error States */
+        .loading {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            padding: var(--spacing-2xl);
+            background: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: var(--danger);
+            padding: var(--spacing-md);
+            border-radius: 8px;
+            margin: var(--spacing-lg) 0;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        @keyframes blinkGreen {
+            0%, 100% { 
+                background-color: transparent;
+                transform: scale(1);
+            }
+            50% { 
+                background-color: rgba(16, 185, 129, 0.2);
+                transform: scale(1.05);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .zone-card {
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* Responsive */
+        @media (max-width: 1600px) {
             .zones-grid {
+                grid-template-columns: repeat(6, 1fr);
+                grid-template-rows: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard-content {
                 grid-template-columns: 1fr;
             }
             
+            .zones-grid {
+                grid-template-columns: repeat(8, 1fr);
+                grid-template-rows: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--spacing-md);
+            }
+
+            .zones-grid {
+                grid-template-columns: repeat(4, 1fr);
+                grid-template-rows: repeat(4, 1fr);
+            }
+
             .status-bar {
                 flex-direction: column;
-                text-align: center;
+                align-items: flex-start;
             }
-            
+
             .control-group {
-                justify-content: center;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .audit-table-container {
+                max-height: 50vh;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .surge-multiplier {
+                font-size: 2rem;
+            }
+
+            .zone-card {
+                padding: var(--spacing-md);
             }
         }
     </style>
@@ -320,20 +627,20 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚗 Dynamic Pricing Dashboard</h1>
-            <p>Real-time surge pricing across 16 zones</p>
+            <h1>Dynamic Pricing Dashboard</h1>
+            <p>Real-time surge pricing monitoring across 16 zones</p>
         </div>
 
         <div class="status-bar">
             <div class="status-item">
                 <div class="status-indicator" id="connectionStatus"></div>
-                <span id="connectionText">Connecting...</span>
+                <span><strong>Status:</strong> <span id="connectionText">Connecting...</span></span>
             </div>
             <div class="status-item">
-                <span>Last Update: <span id="lastUpdate">Never</span></span>
+                <strong>Last Update:</strong> <span id="lastUpdate">Never</span>
             </div>
             <div class="status-item">
-                <span>Total Updates: <span id="totalUpdates">0</span></span>
+                <strong>Total Updates:</strong> <span id="totalUpdates">0</span>
             </div>
         </div>
 
@@ -341,13 +648,13 @@
             <h3>Experiment Status</h3>
             <div id="experimentStatus" class="experiment-status">
                 <div class="status-item">
-                    <span><strong>Mode:</strong> <span id="experimentMode">Loading...</span></span>
+                    <strong>Mode:</strong> <span id="experimentMode">Loading...</span>
                 </div>
                 <div class="status-item">
-                    <span><strong>Seed:</strong> <span id="experimentSeed">-</span></span>
+                    <strong>Seed:</strong> <span id="experimentSeed">-</span>
                 </div>
                 <div class="status-item">
-                    <span><strong>Scenario:</strong> <span id="experimentScenario">-</span></span>
+                    <strong>Scenario:</strong> <span id="experimentScenario">-</span>
                 </div>
             </div>
         </div>
@@ -359,31 +666,60 @@
                     <input type="checkbox" id="showOnlySurge" />
                     Show only zones with surge pricing
                 </label>
-                <label>
-                    <input type="checkbox" id="autoRefresh" checked />
-                    Auto-refresh every 2 seconds
-                </label>
-                <button onclick="reconnectAllZones()">Reconnect</button>
+                <button class="btn" onclick="reconnectAllZones()">Reconnect</button>
             </div>
-        </div>
-
-        <div id="loading" class="loading">
-            Loading zone data...
         </div>
 
         <div id="errorMessage" class="error" style="display: none;">
             Failed to connect to pricing API. Please ensure the system is running.
         </div>
 
-        <div id="zonesContainer" class="zones-grid" style="display: none;">
-            <!-- Zone cards will be populated here -->
+        <div class="dashboard-content">
+            <!-- Left Column: Zones -->
+            <div class="zones-section">
+                <div id="loading" class="loading">
+                    Loading zone data...
+                </div>
+
+                <div id="zonesContainer" class="zones-grid" style="display: none;">
+                    <!-- Zone cards will be populated here -->
+                </div>
+            </div>
+
+            <!-- Right Column: Audit Table -->
+            <div class="audit-section">
+                <div class="audit-header">
+                    <h2>Audit Log</h2>
+                    <p>Recent pricing calculations across all zones</p>
+                </div>
+
+                <div class="audit-table-container">
+                    <table class="audit-table">
+                        <thead>
+                            <tr>
+                                <th>Zone</th>
+                                <th>Surge</th>
+                                <th>Demand</th>
+                                <th>Supply</th>
+                                <th>Ratio</th>
+                                <th>Computed</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditTableBody">
+                            <tr>
+                                <td colspan="6" class="no-audit-data">Loading audit data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         // Configuration
         const API_BASE_URL = 'http://localhost:8081/api/v1';
-        const REFRESH_INTERVAL = 2000; // 2 seconds
+        const REFRESH_INTERVAL = 2000;
         const ZONE_TYPES = {
             1: 'downtown', 2: 'downtown', 3: 'downtown', 4: 'downtown',
             5: 'urban', 6: 'urban', 7: 'urban', 8: 'urban',
@@ -395,11 +731,10 @@
         let zoneData = {};
         let previousZoneData = {};
         let updateCount = 0;
-        let experimentMode = false;
-        let sseConnections = new Map(); // Map of zoneId -> EventSource
-        let reconnectAttempts = new Map(); // Track reconnection attempts per zone
+        let sseConnections = new Map();
+        let reconnectAttempts = new Map();
         const MAX_RECONNECT_ATTEMPTS = 10;
-        const RECONNECT_DELAY = 2000; // 2 seconds
+        const RECONNECT_DELAY = 2000;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -407,6 +742,9 @@
             connectSSE();
             setupEventListeners();
             loadExperimentStatus();
+            loadAuditData();
+            // Refresh audit data every 5 seconds
+            setInterval(loadAuditData, 5000);
         });
 
         function initializeZones() {
@@ -432,7 +770,7 @@
                     <div class="zone-type ${zoneType}">${zoneType.toUpperCase()}</div>
                 </div>
                 <div class="price-display">
-                    <div class="surge-multiplier no-change" id="surge-${zoneId}">1.0x</div>
+                    <div class="surge-multiplier no-change" id="surge-${zoneId}">1.0×</div>
                     <div class="surge-label">Surge Multiplier</div>
                 </div>
                 <div class="metrics">
@@ -445,7 +783,7 @@
                         <div class="metric-label">Supply</div>
                     </div>
                 </div>
-                <div class="last-updated" id="updated-${zoneId}">Never updated</div>
+                <div class="last-updated" id="updated-${zoneId}">Waiting for updates...</div>
             `;
             
             return card;
@@ -453,18 +791,11 @@
 
         function setupEventListeners() {
             document.getElementById('showOnlySurge').addEventListener('change', filterZones);
-            // Remove auto-refresh toggle since we're using real-time SSE
-            document.getElementById('autoRefresh').style.display = 'none';
-            document.querySelector('label[for="autoRefresh"]').style.display = 'none';
         }
 
         function connectSSE() {
-            console.log('Connecting to single SSE stream for all zones...');
-            
-            // Use a single SSE connection for all zones to avoid browser connection limits
+            console.log('Connecting to SSE stream for all zones...');
             connectAllZonesSSE();
-            
-            // Do ONE initial fetch to populate data immediately
             refreshAllZones();
         }
         
@@ -500,7 +831,6 @@
                 updateConnectionStatus(false);
                 eventSource.close();
                 
-                // Retry after 3 seconds
                 setTimeout(() => {
                     console.log('Reconnecting to all zones stream...');
                     connectAllZonesSSE();
@@ -510,83 +840,14 @@
             sseConnections.set('all', eventSource);
         }
 
-        function connectZoneSSE(zoneId) {
-            // Close existing connection if any
-            if (sseConnections.has(zoneId)) {
-                const oldConnection = sseConnections.get(zoneId);
-                oldConnection.close();
-                sseConnections.delete(zoneId);
-            }
-
-            console.log(`Establishing SSE connection for zone ${zoneId}...`);
-            const eventSource = new EventSource(`${API_BASE_URL}/zones/${zoneId}/stream`);
-            
-            eventSource.addEventListener('connected', function(event) {
-                console.log(`✓ SSE connected for zone ${zoneId}`);
-                reconnectAttempts.set(zoneId, 0); // Reset reconnect counter on success
-                updateConnectionStatus(true);
-                
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('errorMessage').style.display = 'none';
-                document.getElementById('zonesContainer').style.display = 'grid';
-            });
-
-            eventSource.addEventListener('price-update', function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log(`Price update received for zone ${zoneId}:`, data);
-                    updateZoneDisplay(zoneId, data);
-                    updateCount++;
-                    document.getElementById('totalUpdates').textContent = updateCount;
-                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
-                } catch (error) {
-                    console.error(`Error processing SSE update for zone ${zoneId}:`, error);
-                }
-            });
-
-            eventSource.onerror = function(event) {
-                console.warn(`SSE connection error for zone ${zoneId}`);
-                
-                // Close the failed connection
-                eventSource.close();
-                sseConnections.delete(zoneId);
-                
-                // Get current reconnect attempts
-                let attempts = reconnectAttempts.get(zoneId) || 0;
-                
-                if (attempts < MAX_RECONNECT_ATTEMPTS) {
-                    attempts++;
-                    reconnectAttempts.set(zoneId, attempts);
-                    
-                    // Exponential backoff: 2s, 4s, 8s, max 30s
-                    const delay = Math.min(RECONNECT_DELAY * Math.pow(2, attempts - 1), 30000);
-                    
-                    console.log(`Reconnecting zone ${zoneId} in ${delay/1000}s (attempt ${attempts}/${MAX_RECONNECT_ATTEMPTS})...`);
-                    
-                    setTimeout(() => {
-                        connectZoneSSE(zoneId);
-                    }, delay);
-                } else {
-                    console.error(`Max reconnection attempts reached for zone ${zoneId}`);
-                    updateConnectionStatus(false);
-                    document.getElementById('errorMessage').textContent = 
-                        `Connection lost for zone ${zoneId}. Please refresh the page.`;
-                    document.getElementById('errorMessage').style.display = 'block';
-                }
-            };
-
-            sseConnections.set(zoneId, eventSource);
-        }
-
         function disconnectSSE() {
             console.log('Disconnecting SSE streams...');
-            sseConnections.forEach((eventSource, zoneId) => {
+            sseConnections.forEach((eventSource) => {
                 eventSource.close();
             });
             sseConnections.clear();
         }
 
-        // Reconnect all zones (useful for manual retry)
         function reconnectAllZones() {
             console.log('Reconnecting all zones...');
             disconnectSSE();
@@ -631,7 +892,6 @@
                 
             } catch (error) {
                 console.error(`Error fetching zone ${zoneId}:`, error);
-                // Don't throw here to avoid breaking other zones
             }
         }
 
@@ -639,36 +899,30 @@
             const previousData = previousZoneData[zoneId];
             previousZoneData[zoneId] = { ...data };
             
-            // Update surge multiplier with animation
             const surgeElement = document.getElementById(`surge-${zoneId}`);
-            // API returns surge_multiplier (snake_case)
             const currentSurge = parseFloat(data.surge_multiplier || data.surgeMultiplier || 1.0);
             const previousSurge = previousData ? parseFloat(previousData.surge_multiplier || previousData.surgeMultiplier || 1.0) : currentSurge;
             
-            surgeElement.textContent = `${currentSurge.toFixed(1)}x`;
+            surgeElement.textContent = `${currentSurge.toFixed(2)}×`;
             
-            // Determine change direction and apply animation
-            if (currentSurge > previousSurge) {
-                surgeElement.className = 'surge-multiplier increase';
-            } else if (currentSurge < previousSurge) {
+            // Lower surge = green blink, higher surge = red
+            if (currentSurge < previousSurge) {
                 surgeElement.className = 'surge-multiplier decrease';
+            } else if (currentSurge > previousSurge) {
+                surgeElement.className = 'surge-multiplier increase';
             } else {
                 surgeElement.className = 'surge-multiplier no-change';
             }
             
-            // Update metrics
             document.getElementById(`demand-${zoneId}`).textContent = data.demand || 0;
             document.getElementById(`supply-${zoneId}`).textContent = data.supply || 0;
             
-            // Update timestamp - force update every time
             const timestampElement = document.getElementById(`updated-${zoneId}`);
             if (timestampElement) {
                 const now = new Date();
-                timestampElement.textContent = `Updated: ${now.toLocaleTimeString()}`;
-                console.log(`Zone ${zoneId} timestamp updated to ${now.toLocaleTimeString()}`);
+                timestampElement.textContent = `Updated ${now.toLocaleTimeString()}`;
             }
             
-            // Store data for filtering
             zoneData[zoneId] = data;
         }
 
@@ -694,7 +948,6 @@
                 const data = zoneData[zoneId];
                 
                 if (showOnlySurge && data) {
-                    // API returns surge_multiplier (snake_case)
                     const surge = parseFloat(data.surge_multiplier || data.surgeMultiplier || 1.0);
                     zoneCard.style.display = surge > 1.0 ? 'block' : 'none';
                 } else {
@@ -712,7 +965,7 @@
                 
                 const data = await response.json();
                 document.getElementById('experimentMode').textContent = 
-                    data.deterministic === 'true' ? 'Deterministic ✓' : 'Random';
+                    data.deterministic === 'true' ? 'Deterministic' : 'Random';
                 document.getElementById('experimentSeed').textContent = data.seed;
                 document.getElementById('experimentScenario').textContent = data.scenario;
                 
@@ -722,7 +975,49 @@
             }
         }
 
-        // SSE handles real-time updates - no polling needed!
+        async function loadAuditData() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/audit?limit=50`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                updateAuditTable(data.records || []);
+                
+            } catch (error) {
+                console.error('Error loading audit data:', error);
+                const tbody = document.getElementById('auditTableBody');
+                tbody.innerHTML = '<tr><td colspan="6" class="no-audit-data">Failed to load audit data</td></tr>';
+            }
+        }
+
+        function updateAuditTable(records) {
+            const tbody = document.getElementById('auditTableBody');
+            
+            if (records.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="no-audit-data">No audit data available</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = records.map(record => {
+                const surge = record.surgeMultiplier || 1.0;
+                const surgeClass = surge >= 2.0 ? 'high' : surge >= 1.5 ? 'medium' : 'normal';
+                const computedTime = new Date(record.tsCompute).toLocaleTimeString();
+                
+                return `
+                    <tr>
+                        <td><span class="zone-badge">Zone ${record.zoneId}</span></td>
+                        <td><span class="surge-badge ${surgeClass}">${surge.toFixed(2)}×</span></td>
+                        <td>${record.demand || 0}</td>
+                        <td>${record.supply || 0}</td>
+                        <td>${(record.ratio || 0).toFixed(2)}</td>
+                        <td class="timestamp">${computedTime}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
     </script>
 </body>
 </html>
+
