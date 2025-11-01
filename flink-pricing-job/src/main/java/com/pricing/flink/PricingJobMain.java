@@ -33,7 +33,7 @@ public class PricingJobMain {
     private static final int PARALLELISM = 4;
     private static final int WATERMARK_INTERVAL = 10;
     private static final int ALLOWED_LATENESS = 10;
-    private static final int PROCESSING_TIME_WINDOW = 3;  // 3 seconds - much faster updates!
+    private static final int PROCESSING_TIME_WINDOW = 3;
 
     private static final String GROUP_ID = "flink-pricing-job";
     private static final String RIDE_REQUESTS_TOPIC = "ride-requests";
@@ -101,7 +101,6 @@ public class PricingJobMain {
                 .flatMap(new EventNormalizationFunction(EventKind.HEARTBEAT.getValue()))
                 .name(NORMALIZE_DRIVERS_HBS);
 
-        // TODO: check naming
         DataStream<NormalizedEvent> unifiedStream = normalizedRides
                 .union(normalizedHeartBeats)
                 .map(x->x)

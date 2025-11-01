@@ -56,62 +56,146 @@ Traditional batch-processing approaches introduce latency unsuitable for real-ti
 
 ### 2.1 High-Level Architecture
 
+```mermaid
+graph TB
+    subgraph Client["Client Layer"]
+        Dashboard["Web Dashboard<br/>(Real-time UI)"]
+        MobileApp["REST Clients<br/>(Mobile/Web Apps)"]
+    end
+
+    subgraph Application["Application Layer"]
+        API["Pricing API<br/>(Spring Boot)<br/>• REST Endpoints<br/>• Server-Sent Events<br/>• Kafka Consumer"]
+        DB[(PostgreSQL<br/>Historical Data)]
+        KafkaBroker["Apache Kafka<br/>Message Broker"]
+    end
+
+    subgraph StreamProcessing["Stream Processing Layer"]
+        Flink["Apache Flink Job<br/>────────────────<br/>1. Event Normalization<br/>2. Zone-based Keying<br/>3. Tumbling Window (3s)<br/>4. Supply/Demand Aggregation<br/>5. Surge Calculation<br/>6. Price Update Publishing"]
+    end
+
+    subgraph Topics["Kafka Topics"]
+        T1[ride-requests]
+        T2[driver-heartbeats]
+        T3[price-updates]
+    end
+
+    subgraph EventGen["Event Generation Layer"]
+        Generator["Event Generator<br/>(Spring Boot)<br/>• Ride Requests (Poisson λ=10.0)<br/>• Driver Heartbeats (1s interval)<br/>• Deterministic Experiments"]
+    end
+
+    Dashboard -->|HTTP/SSE| API
+    MobileApp -->|HTTP/REST| API
+    API -->|Persist| DB
+    API -.->|Consume| KafkaBroker
+    KafkaBroker -->|Subscribe| T3
+    T3 -->|Publish| Flink
+    Flink -->|Subscribe| T1
+    Flink -->|Subscribe| T2
+    T1 -->|Publish| Generator
+    T2 -->|Publish| Generator
+    Flink -->|Publish| T3
+
+    style Client fill:#e1f5ff
+    style Application fill:#fff4e1
+    style StreamProcessing fill:#ffe1f5
+    style EventGen fill:#e1ffe1
+    style Topics fill:#f0f0f0
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Client Layer                            │
-│  ┌──────────────────┐              ┌──────────────────────┐    │
-│  │  Web Dashboard   │              │   REST Clients       │    │
-│  │  (Real-time UI)  │              │   (Mobile/Web Apps)  │    │
-│  └────────┬─────────┘              └──────────┬───────────┘    │
-│           │                                    │                 │
-│           └────────────────┬───────────────────┘                │
-└────────────────────────────┼────────────────────────────────────┘
-                             │ HTTP/SSE
-┌────────────────────────────┼────────────────────────────────────┐
-│                    Application Layer                            │
-│                             │                                    │
-│  ┌─────────────────────────▼──────────────────────────┐        │
-│  │            Pricing API (Spring Boot)                │        │
-│  │  • REST Endpoints                                   │        │
-│  │  • Server-Sent Events (SSE)                        │        │
-│  │  • Kafka Consumer (price-updates)                  │        │
-│  └─────────────────────┬────────────────────┬─────────┘        │
-│                        │                    │                   │
-│                        ▼                    ▼                   │
-│              ┌─────────────────┐   ┌──────────────┐           │
-│              │   PostgreSQL    │   │   Kafka      │           │
-│              │   (Historical)  │   │   Broker     │           │
-│              └─────────────────┘   └──────┬───────┘           │
-└───────────────────────────────────────────┼───────────────────┘
+
+**Alternative Text-Based Diagram** (for systems without Mermaid support):
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                         CLIENT LAYER                               │
+│  ┌─────────────────────┐          ┌─────────────────────┐         │
+│  │   Web Dashboard     │          │    REST Clients     │         │
+│  │   (Real-time UI)    │          │  (Mobile/Web Apps)  │         │
+│  └──────────┬──────────┘          └──────────┬──────────┘         │
+└─────────────┼──────────────────────────────────┼───────────────────┘
+              │            HTTP / SSE            │
+              └──────────────┬───────────────────┘
+┌────────────────────────────┼────────────────────────────────────────┐
+│                    APPLICATION LAYER          │                     │
+│                                               │                     │
+│  ┌────────────────────────────────────────────▼──────────────┐    │
+│  │              Pricing API (Spring Boot)                     │    │
+│  │  ┌──────────────────────────────────────────────────┐     │    │
+│  │  │  • GET /zones/{id}/price                         │     │    │
+│  │  │  • GET /zones/all/stream (SSE)                   │     │    │
+│  │  │  • POST /quote                                    │     │    │
+│  │  │  • Kafka Consumer (price-updates topic)          │     │    │
+│  │  └──────────────────────────────────────────────────┘     │    │
+│  └─────────────┬───────────────────────────┬──────────────────┘   │
+│                │                           │                       │
+│                ▼                           ▼                       │
+│    ┌───────────────────┐       ┌─────────────────────┐           │
+│    │   PostgreSQL      │       │   Apache Kafka      │           │
+│    │                   │       │   Message Broker    │           │
+│    │ • zone_price_     │       │                     │           │
+│    │   snapshot        │       │  Topics:            │           │
+│    │ • zone_window_    │       │  • ride-requests    │           │
+│    │   metrics         │       │  • driver-heartbeats│           │
+│    │ • fare_config     │       │  • price-updates    │           │
+│    └───────────────────┘       └──────────┬──────────┘           │
+└───────────────────────────────────────────┼──────────────────────┘
                                             │
-┌───────────────────────────────────────────┼───────────────────┐
-│                    Stream Processing Layer                     │
-│                                            │                    │
-│  ┌────────────────────────────────────────▼────────────┐      │
-│  │         Apache Flink Processing Job                  │      │
-│  │                                                       │      │
-│  │  1. Event Normalization                             │      │
-│  │  2. Zone-based Keying                               │      │
-│  │  3. Tumbling Window (3s)                            │      │
-│  │  4. Supply/Demand Aggregation                       │      │
-│  │  5. Surge Calculation                               │      │
-│  │  6. Price Update Publishing                         │      │
-│  └───────────────────┬───────────────────────┬─────────┘      │
-│                      │                       │                 │
-│                      ▼                       ▼                 │
-│              [ride-requests]         [driver-heartbeats]       │
-│              [price-updates]              (Kafka Topics)       │
-└──────────────────────┼───────────────────────┼─────────────────┘
-                       │                       │
-┌──────────────────────┼───────────────────────┼─────────────────┐
-│                  Event Generation Layer                         │
-│                      │                       │                  │
-│  ┌──────────────────▼───────────────────────▼──────────┐      │
-│  │         Event Generator (Spring Boot)               │      │
-│  │  • Simulates ride requests (Poisson λ=10.0)        │      │
-│  │  • Simulates driver heartbeats (1s intervals)       │      │
-│  │  • Deterministic mode for experiments               │      │
-│  └─────────────────────────────────────────────────────┘      │
+┌───────────────────────────────────────────┼──────────────────────┐
+│                STREAM PROCESSING LAYER    │                       │
+│                                           │                       │
+│  ┌────────────────────────────────────────▼──────────────────┐  │
+│  │         Apache Flink Streaming Job (Parallelism: 4)       │  │
+│  │  ┌──────────────────────────────────────────────────────┐ │  │
+│  │  │  Stage 1: Event Normalization                        │ │  │
+│  │  │           (RideRequest/DriverHeartbeat → Common)     │ │  │
+│  │  └────────────────────────┬─────────────────────────────┘ │  │
+│  │  ┌────────────────────────▼─────────────────────────────┐ │  │
+│  │  │  Stage 2: Keyed Stream (by zone_id)                  │ │  │
+│  │  └────────────────────────┬─────────────────────────────┘ │  │
+│  │  ┌────────────────────────▼─────────────────────────────┐ │  │
+│  │  │  Stage 3: Tumbling Window (3 seconds)                │ │  │
+│  │  └────────────────────────┬─────────────────────────────┘ │  │
+│  │  ┌────────────────────────▼─────────────────────────────┐ │  │
+│  │  │  Stage 4: Aggregate (count rides & drivers)          │ │  │
+│  │  └────────────────────────┬─────────────────────────────┘ │  │
+│  │  ┌────────────────────────▼─────────────────────────────┐ │  │
+│  │  │  Stage 5: Calculate Surge Multiplier                 │ │  │
+│  │  │           M = f(demand/supply)                        │ │  │
+│  │  └────────────────────────┬─────────────────────────────┘ │  │
+│  │  ┌────────────────────────▼─────────────────────────────┐ │  │
+│  │  │  Stage 6: Publish to price-updates topic             │ │  │
+│  │  └──────────────────────────────────────────────────────┘ │  │
+│  └──────────────┬────────────────────────┬────────────────────┘  │
+│                 │                        │                       │
+│        Consumes │                        │ Produces              │
+│                 ▼                        ▼                       │
+│     [ride-requests topic]    [price-updates topic]              │
+│     [driver-heartbeats topic]                                   │
+└─────────────────┼────────────────────────┼──────────────────────┘
+                  │                        │
+┌─────────────────┼────────────────────────┼──────────────────────┐
+│          EVENT GENERATION LAYER          │                       │
+│                  │                        │                       │
+│  ┌───────────────▼────────────────────────▼─────────────────┐  │
+│  │         Event Generator (Spring Boot)                     │  │
+│  │  ┌────────────────────────────────────────────────────┐  │  │
+│  │  │  Ride Request Generator (Poisson Process)          │  │  │
+│  │  │    • λ = 10.0 requests/second per zone             │  │  │
+│  │  │    • 16 zones = ~160 events/second                 │  │  │
+│  │  │    • Published to: ride-requests topic             │  │  │
+│  │  └────────────────────────────────────────────────────┘  │  │
+│  │  ┌────────────────────────────────────────────────────┐  │  │
+│  │  │  Driver Heartbeat Generator (Periodic)             │  │  │
+│  │  │    • 6 drivers per zone                            │  │  │
+│  │  │    • 1 second interval                             │  │  │
+│  │  │    • 16 zones × 6 drivers = 96 events/second       │  │  │
+│  │  │    • Published to: driver-heartbeats topic         │  │  │
+│  │  └────────────────────────────────────────────────────┘  │  │
+│  │  ┌────────────────────────────────────────────────────┐  │  │
+│  │  │  Deterministic Mode (for experiments)              │  │  │
+│  │  │    • Seeded random number generation               │  │  │
+│  │  │    • Reproducible event sequences                  │  │  │
+│  │  └────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -160,54 +244,81 @@ Traditional batch-processing approaches introduce latency unsuitable for real-ti
 
 ### 4.1 Supply-Demand Ratio
 
-For each zone \( z \) and time window \( w \):
+For each zone $z$ and time window $w$:
 
-\[
-R_{z,w} = \frac{D_{z,w}}{S_{z,w}}
-\]
+$$R_{z,w} = \frac{D_{z,w}}{S_{z,w}}$$
 
 Where:
-- \( R_{z,w} \): Supply-demand ratio for zone \( z \) in window \( w \)
-- \( D_{z,w} \): Number of ride requests in window \( w \)
-- \( S_{z,w} \): Number of available drivers in window \( w \)
+- $R_{z,w}$: Supply-demand ratio for zone $z$ in window $w$
+- $D_{z,w}$: Number of ride requests in window $w$
+- $S_{z,w}$: Number of available drivers in window $w$
 
 ### 4.2 Surge Multiplier Function
 
-The surge multiplier \( M \) is calculated using a piecewise linear function:
+The surge multiplier $M$ is calculated using a piecewise linear function:
 
-\[
-M(R) = \begin{cases}
+$$M(R) = \begin{cases}
 1.0 & \text{if } R \leq 0.5 \\
 1.0 + (R - 0.5) \times 1.0 & \text{if } 0.5 < R \leq 0.8 \\
 1.3 + (R - 0.8) \times 1.75 & \text{if } 0.8 < R \leq 1.2 \\
 2.0 + (R - 1.2) \times 2.5 & \text{if } 1.2 < R \leq 2.0 \\
 4.0 + (R - 2.0) \times 1.5 & \text{if } 2.0 < R \leq 3.0 \\
 \min(7.0, 5.5 + (R - 3.0) \times 0.75) & \text{if } R > 3.0
-\end{cases}
-\]
+\end{cases}$$
 
 This function ensures:
-- No surge when supply exceeds demand (\( R \leq 0.5 \))
+- No surge when supply exceeds demand ($R \leq 0.5$)
 - Gradual increase in surge for moderate imbalance
 - Steeper increase for severe supply shortages
 - Maximum cap at 7.0× to maintain fairness
+
+**Graphical Representation:**
+
+| Ratio Range | Surge Range | Slope | Interpretation |
+|-------------|-------------|-------|----------------|
+| 0.0 - 0.5 | 1.0× | 0.0 | Oversupply |
+| 0.5 - 0.8 | 1.0× - 1.3× | 1.0 | Slight demand |
+| 0.8 - 1.2 | 1.3× - 2.0× | 1.75 | Moderate demand |
+| 1.2 - 2.0 | 2.0× - 4.0× | 2.5 | High demand |
+| 2.0 - 3.0 | 4.0× - 5.5× | 1.5 | Very high demand |
+| 3.0+ | 5.5× - 7.0× | 0.75 | Critical demand (capped) |
 
 ### 4.3 Window Semantics
 
 **Tumbling Time Windows**: Non-overlapping, fixed-duration windows
 
-\[
-W_i = [t_0 + i \cdot \delta, t_0 + (i+1) \cdot \delta)
-\]
+$$W_i = [t_0 + i \cdot \delta, t_0 + (i+1) \cdot \delta)$$
 
 Where:
-- \( W_i \): Window \( i \)
-- \( t_0 \): Start time of the stream
-- \( \delta \): Window duration (3 seconds)
+- $W_i$: Window $i$
+- $t_0$: Start time of the stream
+- $\delta$: Window duration (3 seconds)
+
+**Visual Representation:**
+
+```
+Timeline: ─────────────────────────────────────────────────────►
+Windows:  [W₀][W₁][W₂][W₃][W₄][W₅]...
+Duration:  3s  3s  3s  3s  3s  3s
+```
+
+Each window:
+- **Opens**: At $t_0 + i \times 3$ seconds
+- **Closes**: At $t_0 + (i+1) \times 3$ seconds  
+- **Triggers**: Immediately upon closing (tumbling semantics)
+- **Emits**: One aggregate result per zone per window
 
 ### 4.4 Event Time vs Processing Time
 
-The system uses **processing time** semantics for real-time responsiveness. Events are assigned to windows based on arrival time at the Flink operator, accepting the trade-off between latency and perfect ordering.
+The system uses **processing time** semantics for real-time responsiveness:
+
+**Processing Time Characteristics:**
+- Events assigned to windows based on **arrival time** at Flink operator
+- **Low latency**: No waiting for late events
+- **Deterministic results**: Given same event order
+- **Trade-off**: May not handle out-of-order events optimally
+
+**Rationale**: In ride-sharing pricing, sub-second responsiveness is prioritized over perfect event ordering. The 3-second window provides sufficient aggregation while maintaining real-time characteristics.
 
 ---
 

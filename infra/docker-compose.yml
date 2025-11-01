@@ -9,7 +9,6 @@ services:
             KAFKA_NODE_ID: 1
             KAFKA_PROCESS_ROLES: "broker,controller"
             KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
-            # Two listeners: PLAINTEXT (internal Docker), EXTERNAL (host machine)
             KAFKA_LISTENERS: "PLAINTEXT://:9092,EXTERNAL://:19092,CONTROLLER://:9093"
             KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:19092"
             KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
@@ -21,7 +20,6 @@ services:
             KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
             KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
             KAFKA_NUM_PARTITIONS: 16
-            # Auto-create topics (useful for development)
             KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
         volumes:
             - kafka_data:/var/lib/kafka/data
@@ -31,19 +29,8 @@ services:
             timeout: 10s
             retries: 10
             start_period: 40s
-
-    kafka-ui:
-        image: provectuslabs/kafka-ui:latest
-        container_name: kafka-ui
-        ports:
-            - "8080:8080"
-        environment:
-            KAFKA_CLUSTERS_0_NAME: "local"
-            KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
-            DYNAMIC_CONFIG_ENABLED: "true"
-        depends_on:
-            kafka:
-                condition: service_healthy
+        networks:
+            - pricing-network
 
     postgres:
         image: postgres:16
@@ -64,6 +51,78 @@ services:
             interval: 30s
             timeout: 10s
             retries: 5
+        networks:
+            - pricing-network
+
+    event-generator:
+        build:
+            context: ..
+            dockerfile: services/event-generator/Dockerfile
+        container_name: event-generator
+        ports:
+            - "8082:8082"
+        environment:
+            SPRING_PROFILES_ACTIVE: local
+            BOOTSTRAP_SERVERS: kafka:9092
+        depends_on:
+            kafka:
+                condition: service_healthy
+        networks:
+            - pricing-network
+        restart: unless-stopped
+
+    pricing-api:
+        build:
+            context: ..
+            dockerfile: services/pricing-api/Dockerfile
+        container_name: pricing-api
+        ports:
+            - "8081:8081"
+        environment:
+            SPRING_PROFILES_ACTIVE: local
+            BOOTSTRAP_SERVERS: kafka:9092
+            DATABASE_HOST: postgres
+            DATABASE_PORT: 5432
+            DATABASE_NAME: pricing
+            DATABASE_USER: pricing
+            DATABASE_PASSWORD: pricing123
+        depends_on:
+            postgres:
+                condition: service_healthy
+            kafka:
+                condition: service_healthy
+        networks:
+            - pricing-network
+        restart: unless-stopped
+
+    flink-job:
+        build:
+            context: ..
+            dockerfile: flink-pricing-job/Dockerfile
+        container_name: flink-job
+        environment:
+            KAFKA_BROKERS: kafka:9092
+        depends_on:
+            kafka:
+                condition: service_healthy
+            event-generator:
+                condition: service_started
+        networks:
+            - pricing-network
+        restart: unless-stopped
+
+    frontend:
+        build:
+            context: ..
+            dockerfile: frontend/Dockerfile
+        container_name: frontend
+        ports:
+            - "3000:3000"
+        depends_on:
+            - pricing-api
+        networks:
+            - pricing-network
+        restart: unless-stopped
 
 volumes:
     kafka_data:
@@ -72,5 +131,6 @@ volumes:
         driver: local
 
 networks:
-    default:
+    pricing-network:
         name: pricing-network
+        driver: bridge
