@@ -85,6 +85,7 @@ services:
         environment:
             SPRING_PROFILES_ACTIVE: local
             BOOTSTRAP_SERVERS: kafka:9092
+            DETERMINISTIC: "false"
         depends_on:
             kafka:
                 condition: service_healthy
@@ -127,6 +128,9 @@ services:
         container_name: flink-job
         environment:
             KAFKA_BROKERS: kafka:9092
+            CHECKPOINT_DIR: "file:///app/checkpoints"
+        volumes:
+            - flink_checkpoints:/app/checkpoints
         depends_on:
             kafka:
                 condition: service_healthy
@@ -155,6 +159,8 @@ volumes:
     kafka_data:
         driver: local
     postgres_data:
+        driver: local
+    flink_checkpoints:
         driver: local
 
 networks:

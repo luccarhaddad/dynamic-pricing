@@ -320,6 +320,7 @@ _site/
 experiment-*.log
 metrics-*.csv
 baseline-*.log
+failure-test-results/
 
 # Generated reports
 reports/

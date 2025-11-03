@@ -18,5 +18,5 @@ WORKDIR /app
 
 COPY --from=builder /app/flink-pricing-job/build/libs/*.jar app.jar
 
-ENTRYPOINT ["java", "--add-opens", "java.base/java.lang=ALL-UNNAMED", "-jar", "app.jar"]
+ENTRYPOINT ["java", "--add-opens", "java.base/java.lang=ALL-UNNAMED", "--add-opens", "java.base/java.util=ALL-UNNAMED", "-jar", "app.jar"]
 

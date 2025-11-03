@@ -4,9 +4,14 @@ import com.pricing.flink.model.NormalizedEvent;
 import com.pricing.flink.model.ZoneMetrics;
 import org.apache.flink.api.common.functions.AggregateFunction;
 
-public class ZoneMetricsAggregator implements AggregateFunction<NormalizedEvent, ZoneMetricsAggregator.Accumulator, ZoneMetrics> {
+import java.io.Serializable;
 
-    public static class Accumulator {
+public class ZoneMetricsAggregator implements AggregateFunction<NormalizedEvent, ZoneMetricsAggregator.Accumulator, ZoneMetrics> {
+    private static final long serialVersionUID = 1L;
+
+    public static class Accumulator implements Serializable {
+        private static final long serialVersionUID = 1L;
+        
         int zoneId;
         int rideCount = 0;
         int availableDrivers = 0;
