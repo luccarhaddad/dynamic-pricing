@@ -1,8 +1,9 @@
 FROM gradle:8.5-jdk17 AS builder
 WORKDIR /app
-
 COPY build.gradle.kts settings.gradle.kts ./
 COPY flink-pricing-job/build.gradle.kts ./flink-pricing-job/
+
+RUN gradle :flink-pricing-job:dependencies --no-daemon || true
 
 COPY flink-pricing-job/src ./flink-pricing-job/src
 
@@ -18,5 +19,7 @@ WORKDIR /app
 
 COPY --from=builder /app/flink-pricing-job/build/libs/*.jar app.jar
 
-ENTRYPOINT ["java", "--add-opens", "java.base/java.lang=ALL-UNNAMED", "--add-opens", "java.base/java.util=ALL-UNNAMED", "-jar", "app.jar"]
-
+ENTRYPOINT ["java", \
+            "--add-opens", "java.base/java.lang=ALL-UNNAMED", \
+            "--add-opens", "java.base/java.util=ALL-UNNAMED", \
+            "-jar", "app.jar"]

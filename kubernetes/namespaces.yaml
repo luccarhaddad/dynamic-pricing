@@ -1,0 +1,30 @@
+---
+# Namespace for Flink job and related resources
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flink
+  labels:
+    name: flink
+    app: dynamic-pricing
+
+---
+# Namespace for monitoring stack (Prometheus, Grafana, Loki)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    app: dynamic-pricing
+
+---
+# Namespace for MinIO object storage (S3-compatible)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio
+  labels:
+    name: minio
+    app: dynamic-pricing
+

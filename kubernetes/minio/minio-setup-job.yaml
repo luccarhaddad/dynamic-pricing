@@ -1,0 +1,45 @@
+---
+# Job to create MinIO buckets for Flink
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-setup
+  namespace: minio
+  labels:
+    app: minio-setup
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mc
+        image: minio/mc:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          #!/bin/sh
+          set -e
+          
+          echo "Waiting for MinIO to be ready..."
+          sleep 10
+          
+          echo "Configuring MinIO client..."
+          mc alias set minio http://minio:9000 minioadmin minioadmin
+          
+          echo "Creating buckets..."
+          mc mb minio/flink-checkpoints --ignore-existing
+          mc mb minio/flink-savepoints --ignore-existing
+          mc mb minio/flink-ha --ignore-existing
+          
+          echo "Setting bucket policies to public (for testing)..."
+          mc anonymous set download minio/flink-checkpoints
+          mc anonymous set download minio/flink-savepoints
+          mc anonymous set download minio/flink-ha
+          
+          echo "Listing buckets..."
+          mc ls minio/
+          
+          echo "MinIO setup complete!"
+

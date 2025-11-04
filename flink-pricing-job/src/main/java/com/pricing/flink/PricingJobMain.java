@@ -73,7 +73,14 @@ public class PricingJobMain {
     private static void configureEnvironment(StreamExecutionEnvironment env) {
         env.setParallelism(PARALLELISM);
         
-        String checkpointDir = System.getenv().getOrDefault("CHECKPOINT_DIR", "file:///app/checkpoints");
+        // Configure S3/MinIO settings
+        configureS3Settings();
+        
+        // Checkpoint directory (default to S3/MinIO)
+        String checkpointDir = System.getenv().getOrDefault(
+            "CHECKPOINT_DIR", 
+            "s3://flink-checkpoints/pricing-job"
+        );
         
         env.setStateBackend(new HashMapStateBackend());
         env.getCheckpointConfig().setCheckpointStorage(checkpointDir);
@@ -96,6 +103,23 @@ public class PricingJobMain {
 
         logger.info("Environment configured: parallelism={}, checkpoint_interval={}ms, mode=EXACTLY_ONCE",
                 PARALLELISM, CHECKPOINT_INTERVAL);
+    }
+
+    private static void configureS3Settings() {
+        // S3/MinIO endpoint configuration
+        String s3Endpoint = System.getenv().getOrDefault("S3_ENDPOINT", "http://minio.minio.svc.cluster.local:9000");
+        String s3AccessKey = System.getenv().getOrDefault("S3_ACCESS_KEY", "minioadmin");
+        String s3SecretKey = System.getenv().getOrDefault("S3_SECRET_KEY", "minioadmin");
+        
+        // Set Hadoop/S3 configuration via system properties
+        System.setProperty("fs.s3a.endpoint", s3Endpoint);
+        System.setProperty("fs.s3a.access.key", s3AccessKey);
+        System.setProperty("fs.s3a.secret.key", s3SecretKey);
+        System.setProperty("fs.s3a.path.style.access", "true");
+        System.setProperty("fs.s3a.connection.ssl.enabled", "false");
+        System.setProperty("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
+        
+        logger.info("S3 settings configured: endpoint={}, path-style-access=true", s3Endpoint);
     }
 
     private static KafkaSource<String> createRideRequestsSource() {
