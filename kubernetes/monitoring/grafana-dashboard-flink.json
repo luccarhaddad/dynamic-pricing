@@ -1,0 +1,201 @@
+{
+  "dashboard": {
+    "title": "Flink Dynamic Pricing Job - Overview",
+    "tags": ["flink", "pricing", "streaming"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Job Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "flink_jobmanager_job_Status",
+            "legendFormat": "Status"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Checkpoint Duration",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "flink_jobmanager_job_checkpointDuration",
+            "legendFormat": "Duration (ms)"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Checkpoint Size",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "flink_jobmanager_job_checkpointSize",
+            "legendFormat": "Size (bytes)"
+          }
+        ],
+        "yaxes": [
+          {"format": "bytes", "label": "Size"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Records Processed",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(flink_taskmanager_job_task_operator_numRecordsIn[1m])",
+            "legendFormat": "Records In/sec"
+          },
+          {
+            "expr": "rate(flink_taskmanager_job_task_operator_numRecordsOut[1m])",
+            "legendFormat": "Records Out/sec"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Records/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Latency (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "flink_taskmanager_job_task_operator_latency_p50",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "flink_taskmanager_job_task_operator_latency_p95",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "flink_taskmanager_job_task_operator_latency_p99",
+            "legendFormat": "p99"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Backpressure",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "flink_taskmanager_job_task_backPressuredTimeMsPerSecond",
+            "legendFormat": "Backpressure"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Time"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "TaskManager CPU Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{namespace=\"flink\", pod=~\"pricing-job-taskmanager-.*\"}[1m]) * 100",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "CPU %"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "TaskManager Memory Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "targets": [
+          {
+            "expr": "container_memory_working_set_bytes{namespace=\"flink\", pod=~\"pricing-job-taskmanager-.*\"} / 1024 / 1024",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "mbytes", "label": "Memory"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Kafka Consumer Lag",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+        "targets": [
+          {
+            "expr": "flink_taskmanager_job_task_operator_kafkaConsumerRecordsLagMax",
+            "legendFormat": "{{topic}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Lag"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Watermark",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+        "targets": [
+          {
+            "expr": "flink_taskmanager_job_task_operator_currentInputWatermark",
+            "legendFormat": "Watermark"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Timestamp"},
+          {"format": "short"}
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    }
+  }
+}
+
+

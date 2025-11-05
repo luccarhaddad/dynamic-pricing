@@ -31,25 +31,32 @@ public class PricingJobMain {
 
     private static final Logger logger = LoggerFactory.getLogger(PricingJobMain.class);
 
-    private static final int CHECKPOINT_INTERVAL = 10000;
-    private static final int MIN_PAUSE_BETWEEN_CHECKPOINTS = 3000;
-    private static final int CHECKPOINT_TIMEOUT = 600000;
+    // Configuration loaded from environment variables with defaults
+    private static final int CHECKPOINT_INTERVAL = parseIntEnv(
+        "FLINK_CHECKPOINT_INTERVAL", 10000);
+    private static final int MIN_PAUSE_BETWEEN_CHECKPOINTS = parseIntEnv(
+        "FLINK_MIN_PAUSE_BETWEEN_CHECKPOINTS", 3000);
+    private static final int CHECKPOINT_TIMEOUT = parseIntEnv(
+        "FLINK_CHECKPOINT_TIMEOUT", 600000);
 
-    private static final int PARALLELISM = 8;
-    private static final int WATERMARK_INTERVAL = 10;
-    private static final int ALLOWED_LATENESS = 10;
-    private static final int EVENT_TIME_WINDOW = 5;
+    private static final int PARALLELISM = parseIntEnv(
+        "FLINK_PARALLELISM", 8);
+    private static final int WATERMARK_INTERVAL = parseIntEnv(
+        "FLINK_WATERMARK_INTERVAL", 10);
+    private static final int ALLOWED_LATENESS = parseIntEnv(
+        "FLINK_ALLOWED_LATENESS", 10);
+    private static final int EVENT_TIME_WINDOW = parseIntEnv(
+        "FLINK_EVENT_TIME_WINDOW", 5);
 
-    private static final String GROUP_ID = "flink-pricing-job";
-    private static final String RIDE_REQUESTS_TOPIC = "ride-requests";
-    private static final String DRIVER_HEARTBEATS_TOPIC = "driver-heartbeats";
-    private static final String PRICE_UPDATES_TOPIC = "price-updates";
+    private static final String GROUP_ID = System.getenv().getOrDefault("KAFKA_GROUP_ID", "flink-pricing-job");
+    private static final String RIDE_REQUESTS_TOPIC = System.getenv().getOrDefault("KAFKA_RIDE_REQUESTS_TOPIC", "ride-requests");
+    private static final String DRIVER_HEARTBEATS_TOPIC = System.getenv().getOrDefault("KAFKA_DRIVER_HEARTBEATS_TOPIC", "driver-heartbeats");
+    private static final String PRICE_UPDATES_TOPIC = System.getenv().getOrDefault("KAFKA_PRICE_UPDATES_TOPIC", "price-updates");
 
     private static final String RIDE_REQUESTS_SOURCE = "ride-requests-source";
     private static final String DRIVER_HEARTBEATS_SOURCE = "driver-heartbeats-source";
     private static final String NORMALIZE_RIDES_REQS = "normalize-ride-requests";
     private static final String NORMALIZE_DRIVERS_HBS = "normalize-driver-heartbeats";
-    private static final String NORMALIZED_UNION = "unified-events";
     private static final String ZONE_METRIC_AGG = "zone-metrics-aggregation";
     private static final String SURGE_CALC = "surge-calculation";
     private static final String PRICE_UPDATE_SINK = "price-updates-kafka-sink";
@@ -68,6 +75,27 @@ public class PricingJobMain {
 
         logger.info("Executing Dynamic Pricing Job...");
         env.execute("Dynamic Pricing Job");
+    }
+
+    private static int parseIntEnv(String envVarName, int defaultValue) {
+        String value = System.getenv(envVarName);
+        
+        // If not set, use default
+        if (value == null || value.trim().isEmpty()) {
+            return defaultValue;
+        }
+        
+        // Try to parse, fall back to default if invalid
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            System.err.println(String.format(
+                "WARNING: Invalid value '%s' for environment variable %s. " +
+                "Expected an integer. Using default value: %d",
+                value, envVarName, defaultValue
+            ));
+            return defaultValue;
+        }
     }
 
     private static void configureEnvironment(StreamExecutionEnvironment env) {

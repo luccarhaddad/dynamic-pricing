@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class SimulationService {
@@ -36,7 +35,6 @@ public class SimulationService {
     private final Map<Integer, AtomicInteger> heartbeatCounters = new ConcurrentHashMap<>();
     
     private final DeterministicRandom deterministicRandom;
-    private final AtomicLong globalEventCounter = new AtomicLong(0);
 
     public SimulationService(AppProperties appProperties, ExperimentConfig experimentConfig, 
                            EventPublisher eventPublisher, MeterRegistry meterRegistry) {

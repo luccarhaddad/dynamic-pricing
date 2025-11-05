@@ -1,0 +1,68 @@
+---
+# ServiceAccount for Flink jobs to access Kubernetes API for HA
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flink
+  namespace: flink
+  labels:
+    app: dynamic-pricing
+    component: flink
+
+---
+# Role for Flink HA services (ConfigMap/Lease access)
+# This enables JobManager to store HA metadata in ConfigMaps and use Lease API for leader election
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flink
+  namespace: flink
+  labels:
+    app: dynamic-pricing
+    component: flink
+rules:
+  # ConfigMaps for HA metadata storage (Job ID, checkpoint pointers, job graph)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Leases for leader election (multiple JobManager replicas)
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Pods for health checks and service discovery
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  
+  # Services for networking and service discovery
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Events for logging and monitoring
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+---
+# RoleBinding to associate ServiceAccount with Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flink
+  namespace: flink
+  labels:
+    app: dynamic-pricing
+    component: flink
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: flink
+subjects:
+  - kind: ServiceAccount
+    name: flink
+    namespace: flink
+
+

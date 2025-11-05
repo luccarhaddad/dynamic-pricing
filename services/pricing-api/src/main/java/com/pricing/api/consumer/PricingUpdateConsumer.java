@@ -126,7 +126,7 @@ public class PricingUpdateConsumer {
             ZonePriceResponse priceResponse = new ZonePriceResponse(
                     zoneId,
                     surgeMultiplier,
-                    null, // TODO: Calculate quoted fare if needed
+                    null,
                     OffsetDateTime.now(),
                     demand,
                     supply,

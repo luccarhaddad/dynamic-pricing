@@ -1,0 +1,198 @@
+---
+# Flink Kubernetes Operator Installation
+# This file installs the Flink Kubernetes Operator using kubectl
+# Alternative: Use Helm (see install-helm.sh)
+
+# Note: The operator manages FlinkDeployment, FlinkSessionJob, and FlinkApplication resources
+# Operator version: 1.7.0 (latest stable as of 2024)
+
+# CRD: FlinkDeployment - Main resource for deploying Flink jobs
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: flinkdeployments.flink.apache.org
+spec:
+  group: flink.apache.org
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+  scope: Namespaced
+  names:
+    plural: flinkdeployments
+    singular: flinkdeployment
+    kind: FlinkDeployment
+    shortNames:
+      - flinkdep
+      - fd
+
+---
+# CRD: FlinkSessionJob - For submitting jobs to existing Flink clusters
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: flinksessionjobs.flink.apache.org
+spec:
+  group: flink.apache.org
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+  scope: Namespaced
+  names:
+    plural: flinksessionjobs
+    singular: flinksessionjob
+    kind: FlinkSessionJob
+    shortNames:
+      - flinksj
+      - fsj
+
+---
+# ServiceAccount for Flink Operator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flink-kubernetes-operator
+  namespace: flink-operator
+  labels:
+    app: flink-kubernetes-operator
+
+---
+# ClusterRole for Flink Operator (needs cluster-wide permissions)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flink-kubernetes-operator
+  labels:
+    app: flink-kubernetes-operator
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "endpoints"]
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["*"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["*"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["*"]
+  - apiGroups: ["flink.apache.org"]
+    resources: ["flinkdeployments", "flinksessionjobs"]
+    verbs: ["*"]
+  - apiGroups: ["flink.apache.org"]
+    resources: ["flinkdeployments/status", "flinksessionjobs/status"]
+    verbs: ["update"]
+
+---
+# ClusterRoleBinding for Flink Operator
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flink-kubernetes-operator
+  labels:
+    app: flink-kubernetes-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flink-kubernetes-operator
+subjects:
+  - kind: ServiceAccount
+    name: flink-kubernetes-operator
+    namespace: flink-operator
+
+---
+# Flink Operator Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-kubernetes-operator
+  namespace: flink-operator
+  labels:
+    app: flink-kubernetes-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flink-kubernetes-operator
+  template:
+    metadata:
+      labels:
+        app: flink-kubernetes-operator
+    spec:
+      serviceAccountName: flink-kubernetes-operator
+      containers:
+      - name: flink-kubernetes-operator
+        # Using latest stable version 1.7.0
+        # Official image: apache/flink-kubernetes-operator:1.7.0
+        image: apache/flink-kubernetes-operator:1.7.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9443
+          name: https
+        env:
+        - name: WATCH_NAMESPACE
+          # Empty string means watch all namespaces
+          # Set to "flink" to watch only flink namespace
+          value: ""
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: flink-kubernetes-operator
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# Service for Flink Operator (for metrics and health checks)
+apiVersion: v1
+kind: Service
+metadata:
+  name: flink-kubernetes-operator
+  namespace: flink-operator
+  labels:
+    app: flink-kubernetes-operator
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  - port: 9443
+    targetPort: 9443
+    protocol: TCP
+    name: https
+  selector:
+    app: flink-kubernetes-operator
+
+

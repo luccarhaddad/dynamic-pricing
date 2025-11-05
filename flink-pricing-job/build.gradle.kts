@@ -3,6 +3,11 @@ plugins {
     id("com.github.johnrengelman.shadow")
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
 val flinkVersion = "1.17.2"
 val kafkaVersion = "3.9.0"
 val postgresqlVersion = "42.7.4"
@@ -18,9 +23,7 @@ dependencies {
     implementation("org.apache.flink:flink-connector-jdbc:1.16.3")
 
     // S3 FileSystem Support for checkpoints
-    implementation("org.apache.flink:flink-s3-fs-hadoop:$flinkVersion")
-    implementation("org.apache.hadoop:hadoop-aws:$hadoopVersion")
-    implementation("org.apache.hadoop:hadoop-common:$hadoopVersion")
+    compileOnly("org.apache.flink:flink-s3-fs-hadoop:$flinkVersion")
 
     // Kafka & Serialization
     implementation("org.apache.kafka:kafka-clients:$kafkaVersion")
@@ -50,8 +53,11 @@ tasks.shadowJar {
     isZip64 = true
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
     
-    // relocate("com.google.common", "com.pricing.shaded.guava")
-    // relocate("com.google.protobuf", "com.pricing.shaded.protobuf")
+    // Exclude S3 filesystem plugin classes - loaded as Flink plugin instead
+    // This prevents class loading conflicts between shaded JAR and plugin JAR
+    exclude("org/apache/flink/fs/s3/**")
+    exclude("org/apache/flink/fs/s3hadoop/**")
+    exclude("org/apache/flink/fs/s3common/**")
 }
 
 // Fix task dependencies for shadowJar

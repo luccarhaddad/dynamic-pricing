@@ -1,0 +1,11 @@
+---
+# Namespace for Flink Kubernetes Operator
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flink-operator
+  labels:
+    name: flink-operator
+    app: dynamic-pricing
+
+
