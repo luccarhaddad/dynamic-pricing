@@ -75,7 +75,7 @@ metadata:
     app: flink-kubernetes-operator
 rules:
   - apiGroups: [""]
-    resources: ["pods", "services", "configmaps", "secrets", "endpoints"]
+    resources: ["pods", "services", "configmaps", "secrets", "endpoints", "events"]
     verbs: ["*"]
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets"]
@@ -136,6 +136,7 @@ spec:
         # Official image: apache/flink-kubernetes-operator:1.7.0
         image: apache/flink-kubernetes-operator:1.7.0
         imagePullPolicy: IfNotPresent
+        args: ["operator"]
         ports:
         - containerPort: 8080
           name: http

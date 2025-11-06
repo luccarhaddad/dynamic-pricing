@@ -19,35 +19,6 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 #######################################
-# Create Kafka topics
-#######################################
-create_kafka_topics() {
-    echo "  Creating Kafka topics..."
-    
-    # Wait for Kafka to be ready
-    until docker compose -f "$PROJECT_ROOT/infra/docker-compose.yml" exec -T kafka \
-        /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list > /dev/null 2>&1; do
-        sleep 2
-        echo "    Still waiting for Kafka..."
-    done
-    
-    # Create topics
-    for topic in "ride-requests" "driver-heartbeats" "price-updates"; do
-        docker compose -f "$PROJECT_ROOT/infra/docker-compose.yml" exec -T kafka \
-            /opt/kafka/bin/kafka-topics.sh \
-            --create \
-            --bootstrap-server localhost:19092 \
-            --topic "$topic" \
-            --partitions 16 \
-            --replication-factor 1 \
-            --config cleanup.policy=delete \
-            --config retention.ms=3600000 2>/dev/null || echo "    Topic $topic already exists"
-    done
-    
-    echo -e "${GREEN}✓${NC} Kafka topics ready"
-}
-
-#######################################
 # Start local environment
 #######################################
 dev_start() {
@@ -63,48 +34,51 @@ dev_start() {
     echo -e "${GREEN}✓${NC} Docker is running"
     
     # Stop old processes
-    echo -e "\n${YELLOW}[1/6]${NC} Stopping old processes..."
+    echo -e "\n${YELLOW}[1/5]${NC} Stopping old processes..."
     dev_stop_services
     
     # Start infrastructure
-    echo -e "\n${YELLOW}[2/6]${NC} Starting infrastructure (Kafka + PostgreSQL)..."
+    echo -e "\n${YELLOW}[2/5]${NC} Starting infrastructure (Kafka + PostgreSQL)..."
     cd "$PROJECT_ROOT/infra"
     docker compose up -d
     cd "$PROJECT_ROOT"
-    echo -e "${GREEN}✓${NC} Infrastructure started"
+    echo -e "${GREEN}✓${NC} Infrastructure containers started"
     
-    # Wait for services
-    echo -e "\n${YELLOW}[3/6]${NC} Waiting for services to be ready..."
-    echo "  Waiting for PostgreSQL..."
-    sleep 5
+    # Wait for services to be healthy and topics to be created
+    echo -e "\n${YELLOW}[3/5]${NC} Waiting for services to be ready..."
+    
+    echo "  Waiting for PostgreSQL to be healthy..."
     until docker compose -f "$PROJECT_ROOT/infra/docker-compose.yml" exec -T postgres \
         pg_isready -U pricing -d pricing > /dev/null 2>&1; do
         sleep 2
+        echo "    Still waiting for PostgreSQL..."
     done
     echo -e "${GREEN}✓${NC} PostgreSQL ready"
     
-    echo "  Waiting for Kafka (30-40 seconds)..."
-    sleep 10
-    until docker compose -f "$PROJECT_ROOT/infra/docker-compose.yml" exec -T kafka \
-        /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list > /dev/null 2>&1; do
+    echo "  Waiting for Kafka to be healthy..."
+    until [ "$(docker inspect --format='{{.State.Health.Status}}' kafka 2>/dev/null)" = "healthy" ]; do
         sleep 3
-        echo "    Still waiting..."
+        echo "    Still waiting for Kafka healthcheck..."
     done
     echo -e "${GREEN}✓${NC} Kafka ready"
     
-    # Create Kafka topics
-    echo -e "\n${YELLOW}[4/6]${NC} Setting up Kafka topics..."
-    create_kafka_topics
+    echo "  Waiting for Kafka topics to be created..."
+    # Wait for kafka-init to complete (it creates the topics)
+    until [ "$(docker inspect --format='{{.State.Status}}' kafka-init 2>/dev/null)" = "exited" ]; do
+        sleep 2
+        echo "    Still waiting for topic initialization..."
+    done
+    echo -e "${GREEN}✓${NC} Kafka topics created"
     
     # Build applications
-    echo -e "\n${YELLOW}[5/6]${NC} Building Spring Boot applications..."
+    echo -e "\n${YELLOW}[4/5]${NC} Building Spring Boot applications..."
     "$PROJECT_ROOT/gradlew" -p "$PROJECT_ROOT" \
         :services:pricing-api:bootJar \
         :services:event-generator:bootJar -q
     echo -e "${GREEN}✓${NC} Build complete"
     
     # Start services
-    echo -e "\n${YELLOW}[6/6]${NC} Starting services..."
+    echo -e "\n${YELLOW}[5/5]${NC} Starting services..."
     mkdir -p "$PROJECT_ROOT/logs"
     
     # Pricing API

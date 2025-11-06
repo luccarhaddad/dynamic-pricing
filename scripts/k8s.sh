@@ -2,17 +2,19 @@
 # k8s.sh - Kubernetes operations
 #
 # Usage:
-#   ./scripts/k8s.sh setup       - One-time setup (operator, namespaces, MinIO)
-#   ./scripts/k8s.sh deploy      - Deploy Flink job to Kubernetes
-#   ./scripts/k8s.sh undeploy    - Remove Flink job
-#   ./scripts/k8s.sh logs        - View logs
-#   ./scripts/k8s.sh status      - Check Kubernetes resources
-#   ./scripts/k8s.sh monitoring  - Deploy monitoring stack
-#   ./scripts/k8s.sh test-ft     - Test fault tolerance
+#   ./scripts/k8s.sh setup         - One-time setup (operator, namespaces, MinIO)
+#   ./scripts/k8s.sh deploy        - Deploy Flink job to Kubernetes (auto-starts port-forward)
+#   ./scripts/k8s.sh undeploy      - Remove Flink job
+#   ./scripts/k8s.sh logs          - View logs
+#   ./scripts/k8s.sh status        - Check Kubernetes resources
+#   ./scripts/k8s.sh monitoring    - Deploy monitoring stack (auto-starts port-forward)
+#   ./scripts/k8s.sh test-ft       - Test fault tolerance
+#   ./scripts/k8s.sh ports [start|stop] - Manage port-forwarding
 
 set -e
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 K8S_DIR="$PROJECT_ROOT/kubernetes"
+PID_DIR="$PROJECT_ROOT/logs"
 
 # Colors
 GREEN='\033[0;32m'
@@ -21,21 +23,190 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Ensure PID directory exists
+mkdir -p "$PID_DIR"
+
+#######################################
+# Port forwarding management
+#######################################
+start_port_forward() {
+    local namespace=$1
+    local service=$2
+    local local_port=$3
+    local remote_port=$4
+    local name=$5
+    local pid_file="$PID_DIR/portforward-${name}.pid"
+    
+    # Check if already running
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file")
+        if ps -p "$pid" > /dev/null 2>&1; then
+            echo -e "${YELLOW}⚠${NC} Port-forward for $name already running (PID: $pid)"
+            return 0
+        fi
+    fi
+    
+    # Start port-forward in background
+    kubectl port-forward -n "$namespace" "svc/$service" "$local_port:$remote_port" > /dev/null 2>&1 &
+    local new_pid=$!
+    echo "$new_pid" > "$pid_file"
+    
+    # Wait a moment and verify it started
+    sleep 2
+    if ps -p "$new_pid" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} Port-forward started: localhost:$local_port -> $service:$remote_port (PID: $new_pid)"
+        return 0
+    else
+        echo -e "${RED}✗${NC} Failed to start port-forward for $name"
+        rm -f "$pid_file"
+        return 1
+    fi
+}
+
+stop_port_forward() {
+    local name=$1
+    local pid_file="$PID_DIR/portforward-${name}.pid"
+    
+    if [ ! -f "$pid_file" ]; then
+        echo -e "${YELLOW}⚠${NC} No port-forward PID file found for $name"
+        return 0
+    fi
+    
+    local pid=$(cat "$pid_file")
+    if ps -p "$pid" > /dev/null 2>&1; then
+        kill "$pid" 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Stopped port-forward for $name (PID: $pid)"
+    fi
+    rm -f "$pid_file"
+}
+
+stop_all_port_forwards() {
+    echo -e "${YELLOW}Stopping all port-forwards...${NC}"
+    for pid_file in "$PID_DIR"/portforward-*.pid; do
+        if [ -f "$pid_file" ]; then
+            local name=$(basename "$pid_file" .pid | sed 's/portforward-//')
+            stop_port_forward "$name"
+        fi
+    done
+}
+
+start_all_port_forwards() {
+    echo -e "${BLUE}🔌 Starting Port Forwards${NC}"
+    echo "=========================================="
+    
+    check_prerequisites
+    
+    # Check if services exist before port-forwarding
+    local flink_ready=false
+    local monitoring_ready=false
+    
+    if kubectl get svc -n flink flink-jobmanager &> /dev/null; then
+        flink_ready=true
+    fi
+    
+    if kubectl get svc -n monitoring grafana &> /dev/null; then
+        monitoring_ready=true
+    fi
+    
+    if kubectl get svc -n monitoring prometheus &> /dev/null; then
+        monitoring_ready=true
+    fi
+    
+    # Start port-forwards
+    if [ "$flink_ready" = true ]; then
+        start_port_forward "flink" "flink-jobmanager" "8081" "8081" "flink-ui"
+    else
+        echo -e "${YELLOW}⚠${NC} Flink not deployed, skipping Flink UI port-forward"
+    fi
+    
+    if [ "$monitoring_ready" = true ]; then
+        start_port_forward "monitoring" "grafana" "3001" "3000" "grafana"
+        start_port_forward "monitoring" "prometheus" "9090" "9090" "prometheus"
+    else
+        echo -e "${YELLOW}⚠${NC} Monitoring not deployed, skipping monitoring port-forwards"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}Port Forwards Active${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo ""
+    if [ "$flink_ready" = true ]; then
+        echo "  Flink UI:    http://localhost:8081"
+    fi
+    if [ "$monitoring_ready" = true ]; then
+        echo "  Grafana:     http://localhost:3001 (admin/admin)"
+        echo "  Prometheus:  http://localhost:9090"
+    fi
+    echo ""
+    echo "To stop all port-forwards:"
+    echo "  ./scripts/k8s.sh ports stop"
+    echo ""
+}
+
 #######################################
 # Check prerequisites
 #######################################
 check_prerequisites() {
+    # Check kubectl
     if ! command -v kubectl &> /dev/null; then
         echo -e "${RED}✗ kubectl is not installed${NC}"
+        echo "Install kubectl: https://kubernetes.io/docs/tasks/tools/"
         exit 1
     fi
     
-    if ! kubectl cluster-info &> /dev/null; then
+    # Try to connect to cluster
+    if kubectl cluster-info &> /dev/null; then
+        echo -e "${GREEN}✓${NC} Connected to Kubernetes cluster"
+        return 0
+    fi
+    
+    # If not connected, check if Minikube is available
+    if command -v minikube &> /dev/null; then
+        echo -e "${YELLOW}⚠${NC} Kubernetes cluster not accessible"
+        
+        # Check Minikube status
+        if minikube status --format='{{.Host}}' 2>/dev/null | grep -q "Stopped"; then
+            echo -e "${YELLOW}ℹ${NC} Minikube cluster is stopped"
+            echo -n "Starting Minikube cluster..."
+            
+            if minikube start > /dev/null 2>&1; then
+                echo -e " ${GREEN}✓${NC}"
+                echo -e "${GREEN}✓${NC} Minikube started successfully"
+                return 0
+            else
+                echo -e " ${RED}✗${NC}"
+                echo -e "${RED}✗ Failed to start Minikube${NC}"
+                echo "Try manually: minikube start"
+                exit 1
+            fi
+        else
+            # Minikube exists but no profile or other issue
+            echo -e "${YELLOW}ℹ${NC} No Minikube cluster found. Starting new cluster..."
+            echo "This may take 2-3 minutes..."
+            
+            if minikube start; then
+                echo -e "${GREEN}✓${NC} Minikube started successfully"
+                return 0
+            else
+                echo -e "${RED}✗ Failed to start Minikube${NC}"
+                exit 1
+            fi
+        fi
+    else
+        # No Minikube, suggest alternatives
         echo -e "${RED}✗ Cannot connect to Kubernetes cluster${NC}"
+        echo ""
+        echo "Options to fix this:"
+        echo "  1. Enable Kubernetes in Docker Desktop:"
+        echo "     Settings → Kubernetes → Enable Kubernetes"
+        echo ""
+        echo "  2. Install and use Minikube:"
+        echo "     brew install minikube"
+        echo "     minikube start"
+        echo ""
         exit 1
     fi
-    
-    return 0
 }
 
 #######################################
@@ -47,26 +218,39 @@ k8s_setup() {
     
     check_prerequisites
     
-    # Step 1: Install Flink Operator
+    # Step 1: Install Flink Operator using Helm
     echo -e "\n${YELLOW}[1/5]${NC} Installing Flink Kubernetes Operator..."
-    echo "  Creating operator namespace..."
-    kubectl apply -f "$K8S_DIR/flink-operator/namespace.yaml"
     
-    echo "  Installing CRDs and operator..."
-    kubectl apply -f "$K8S_DIR/flink-operator/install.yaml"
-    
-    echo "  Waiting for operator to be ready..."
-    kubectl wait --for=condition=established --timeout=60s \
-        crd/flinkdeployments.flink.apache.org \
-        crd/flinksessionjobs.flink.apache.org || {
-        echo -e "${RED}✗ CRDs not ready${NC}"
+    # Check if Helm is installed
+    if ! command -v helm &> /dev/null; then
+        echo -e "${RED}✗ Helm is not installed${NC}"
+        echo "Install Helm: brew install helm"
         exit 1
-    }
+    fi
     
-    kubectl wait --for=condition=ready --timeout=120s \
-        pod -l app=flink-kubernetes-operator -n flink-operator || {
-        echo -e "${YELLOW}⚠${NC} Operator pod not ready, but continuing..."
-    }
+    # Check if operator is already installed
+    if helm list -n flink-operator 2>/dev/null | grep -q flink-kubernetes-operator; then
+        echo "  Operator already installed, skipping..."
+    else
+        echo "  Adding Helm repository..."
+        helm repo add flink-kubernetes-operator-1.7.0 https://archive.apache.org/dist/flink/flink-kubernetes-operator-1.7.0/ 2>/dev/null || true
+        helm repo update > /dev/null 2>&1
+        
+        echo "  Creating operator namespace..."
+        kubectl create namespace flink-operator 2>/dev/null || true
+        
+        echo "  Installing operator with Helm..."
+        helm install flink-kubernetes-operator \
+            flink-kubernetes-operator-1.7.0/flink-kubernetes-operator \
+            --namespace flink-operator \
+            --set webhook.create=false
+        
+        echo "  Waiting for operator to be ready..."
+        kubectl wait --for=condition=ready --timeout=120s \
+            pod -l app.kubernetes.io/name=flink-kubernetes-operator -n flink-operator || {
+            echo -e "${YELLOW}⚠${NC} Operator pod not ready within timeout"
+        }
+    fi
     echo -e "${GREEN}✓${NC} Operator installed"
     
     # Step 2: Create namespaces
@@ -174,6 +358,15 @@ k8s_deploy() {
     echo -e "${GREEN}Deployment Complete!${NC}"
     echo -e "${GREEN}========================================${NC}"
     echo ""
+    
+    # Start port-forwarding automatically
+    echo -e "${YELLOW}Setting up port-forwarding...${NC}"
+    start_port_forward "flink" "flink-jobmanager" "8081" "8081" "flink-ui"
+    
+    echo ""
+    echo "Quick access:"
+    echo "  Flink UI:  http://localhost:8081"
+    echo ""
     echo "Check status:"
     echo "  ./scripts/k8s.sh status"
     echo ""
@@ -181,9 +374,8 @@ k8s_deploy() {
     echo "  ./scripts/k8s.sh logs jobmanager"
     echo "  ./scripts/k8s.sh logs taskmanager"
     echo ""
-    echo "Access Flink UI:"
-    echo "  kubectl port-forward -n flink svc/pricing-job-rest 8081:8081"
-    echo "  Then open: http://localhost:8081"
+    echo "Stop port-forwarding:"
+    echo "  ./scripts/k8s.sh ports stop"
     echo ""
 }
 
@@ -196,8 +388,12 @@ k8s_undeploy() {
     
     check_prerequisites
     
+    # Stop port-forwarding first
+    echo -e "${YELLOW}Stopping Flink port-forwarding...${NC}"
+    stop_port_forward "flink-ui"
+    
     # Confirm
-    echo -e "${YELLOW}This will delete the FlinkDeployment and all related resources.${NC}"
+    echo -e "\n${YELLOW}This will delete the FlinkDeployment and all related resources.${NC}"
     read -p "Continue? (yes/no): " -r
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
         echo "Aborted."
@@ -339,16 +535,22 @@ k8s_monitoring() {
     echo -e "${GREEN}Monitoring Deployed!${NC}"
     echo -e "${GREEN}========================================${NC}"
     echo ""
-    echo "Access Prometheus:"
-    echo "  kubectl port-forward -n monitoring svc/prometheus 9090:9090"
-    echo "  http://localhost:9090"
+    
+    # Start port-forwarding automatically
+    echo -e "${YELLOW}Setting up port-forwarding...${NC}"
+    start_port_forward "monitoring" "prometheus" "9090" "9090" "prometheus"
+    start_port_forward "monitoring" "grafana" "3001" "3000" "grafana"
+    
     echo ""
-    echo "Access Grafana:"
-    echo "  kubectl port-forward -n monitoring svc/grafana 3000:3000"
-    echo "  http://localhost:3000 (admin/admin)"
+    echo "Quick access:"
+    echo "  Prometheus:  http://localhost:9090"
+    echo "  Grafana:     http://localhost:3001 (admin/admin)"
     echo ""
     echo "Or use NodePort (if available):"
     echo "  http://<node-ip>:30002"
+    echo ""
+    echo "Stop port-forwarding:"
+    echo "  ./scripts/k8s.sh ports stop"
     echo ""
 }
 
@@ -454,23 +656,47 @@ case "${1:-}" in
     test-ft)
         k8s_test_ft
         ;;
+    ports|port-forward)
+        case "${2:-}" in
+            start)
+                start_all_port_forwards
+                ;;
+            stop)
+                stop_all_port_forwards
+                ;;
+            *)
+                echo "Usage: $0 ports {start|stop}"
+                echo ""
+                echo "  start  - Start all port-forwards (Flink, Grafana, Prometheus)"
+                echo "  stop   - Stop all port-forwards"
+                echo ""
+                echo "Examples:"
+                echo "  $0 ports start"
+                echo "  $0 ports stop"
+                exit 1
+                ;;
+        esac
+        ;;
     *)
-        echo "Usage: $0 {setup|deploy|undeploy|logs|status|monitoring|test-ft}"
+        echo "Usage: $0 {setup|deploy|undeploy|logs|status|monitoring|test-ft|ports}"
         echo ""
         echo "Commands:"
         echo "  setup       - One-time Kubernetes setup (operator, namespaces, MinIO)"
-        echo "  deploy      - Deploy Flink job to Kubernetes"
+        echo "  deploy      - Deploy Flink job to Kubernetes (auto-starts port-forwarding)"
         echo "  undeploy    - Remove Flink job from Kubernetes"
         echo "  logs        - View logs (specify: jobmanager, taskmanager, operator)"
         echo "  status      - Check Kubernetes resources"
-        echo "  monitoring  - Deploy Prometheus and Grafana"
+        echo "  monitoring  - Deploy Prometheus and Grafana (auto-starts port-forwarding)"
         echo "  test-ft     - Test fault tolerance"
+        echo "  ports       - Manage port-forwarding (start|stop)"
         echo ""
         echo "Examples:"
         echo "  $0 setup                  # First-time setup"
         echo "  $0 deploy                 # Deploy Flink job"
         echo "  $0 logs jobmanager        # View JobManager logs"
         echo "  $0 status                 # Check everything"
+        echo "  $0 ports start            # Start all port-forwards"
+        echo "  $0 ports stop             # Stop all port-forwards"
         exit 1
         ;;
 esac

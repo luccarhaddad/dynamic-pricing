@@ -31,15 +31,20 @@ rules:
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   
-  # Pods for health checks and service discovery
+  # Pods for health checks, service discovery, and TaskManager creation
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   
   # Services for networking and service discovery
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Deployments for native Kubernetes integration
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
   
   # Events for logging and monitoring
   - apiGroups: [""]

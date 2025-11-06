@@ -387,6 +387,13 @@ Expected output:
 | Pricing API | http://localhost:8081/api/v1/health | REST API health check |
 | Event Generator | http://localhost:8082/actuator/health | Event simulation metrics |
 
+**Kubernetes Monitoring** (when deployed with `./scripts/k8s.sh monitoring`):
+
+| Interface | Access Command | URL | Credentials |
+|-----------|----------------|-----|-------------|
+| Prometheus | `kubectl port-forward -n monitoring svc/prometheus 9090:9090` | http://localhost:9090 | - |
+| Grafana | `kubectl port-forward -n monitoring svc/grafana 3001:3000` | http://localhost:3001 | admin/admin |
+
 ### 5.3 System Shutdown
 
 ```bash

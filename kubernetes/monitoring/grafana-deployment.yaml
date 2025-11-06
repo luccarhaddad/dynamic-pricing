@@ -44,7 +44,7 @@ spec:
         - name: datasources
           mountPath: /etc/grafana/provisioning/datasources
         - name: storage
-          mountPath: /var/lib/grafana
+          mountPath: /var/lib/grafana/storage
         resources:
           requests:
             memory: "256Mi"
@@ -133,7 +133,7 @@ data:
     org_role = Viewer
 
     [dashboards]
-    default_home_dashboard_path = /etc/grafana/provisioning/dashboards/flink-overview.json
+    default_home_dashboard_path = /var/lib/grafana/dashboards/flink-overview.json
 
 ---
 # Grafana Datasources ConfigMap
@@ -178,6 +178,6 @@ data:
         editable: true
         allowUiUpdates: true
         options:
-          path: /etc/grafana/provisioning/dashboards
+          path: /var/lib/grafana/dashboards
           foldersFromFilesStructure: true
 
