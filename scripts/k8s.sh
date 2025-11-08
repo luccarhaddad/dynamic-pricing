@@ -100,7 +100,8 @@ start_all_port_forwards() {
     local flink_ready=false
     local monitoring_ready=false
     
-    if kubectl get svc -n flink flink-jobmanager &> /dev/null; then
+    # Flink operator creates service with pattern: <deployment-name>-rest
+    if kubectl get svc -n flink pricing-job-rest &> /dev/null; then
         flink_ready=true
     fi
     
@@ -114,7 +115,8 @@ start_all_port_forwards() {
     
     # Start port-forwards
     if [ "$flink_ready" = true ]; then
-        start_port_forward "flink" "flink-jobmanager" "8081" "8081" "flink-ui"
+        # Use port 9081 for Flink UI to avoid conflict with pricing-api on 8081
+        start_port_forward "flink" "pricing-job-rest" "9081" "8081" "flink-ui"
     else
         echo -e "${YELLOW}⚠${NC} Flink not deployed, skipping Flink UI port-forward"
     fi
@@ -132,7 +134,7 @@ start_all_port_forwards() {
     echo -e "${GREEN}========================================${NC}"
     echo ""
     if [ "$flink_ready" = true ]; then
-        echo "  Flink UI:    http://localhost:8081"
+        echo "  Flink UI:    http://localhost:9081"
     fi
     if [ "$monitoring_ready" = true ]; then
         echo "  Grafana:     http://localhost:3001 (admin/admin)"
@@ -361,11 +363,12 @@ k8s_deploy() {
     
     # Start port-forwarding automatically
     echo -e "${YELLOW}Setting up port-forwarding...${NC}"
-    start_port_forward "flink" "flink-jobmanager" "8081" "8081" "flink-ui"
+    # Use port 9081 for Flink UI to avoid conflict with pricing-api on 8081
+    start_port_forward "flink" "pricing-job-rest" "9081" "8081" "flink-ui"
     
     echo ""
     echo "Quick access:"
-    echo "  Flink UI:  http://localhost:8081"
+    echo "  Flink UI:  http://localhost:9081"
     echo ""
     echo "Check status:"
     echo "  ./scripts/k8s.sh status"

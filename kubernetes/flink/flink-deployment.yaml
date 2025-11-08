@@ -62,7 +62,7 @@ spec:
     jobmanager.memory.process.size: 2048m
     
     # Prometheus Metrics Configuration
-    metrics.reporter.prometheus.class: org.apache.flink.metrics.prometheus.PrometheusReporter
+    metrics.reporter.prometheus.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
     metrics.reporter.prometheus.port: "9249"
     metrics.reporters: prometheus
     
@@ -115,8 +115,11 @@ spec:
                 value: "5"
               
               # Kafka Configuration
+              # For Minikube (Docker driver): use host.docker.internal (resolves to host gateway)
+              # For Docker Desktop K8s: use host.docker.internal
+              # For other K8s: use host IP or create a service
               - name: KAFKA_BROKERS
-                value: "host.minikube.internal:19092"
+                value: "host.docker.internal:19092"
               - name: KAFKA_GROUP_ID
                 value: "flink-pricing-job"
               - name: KAFKA_RIDE_REQUESTS_TOPIC
@@ -177,8 +180,12 @@ spec:
               - name: FLINK_EVENT_TIME_WINDOW
                 value: "5"
               
+              # Kafka Configuration
+              # For Minikube (Docker driver): use host.docker.internal (resolves to host gateway)
+              # For Docker Desktop K8s: use host.docker.internal
+              # For other K8s: use host IP or create a service
               - name: KAFKA_BROKERS
-                value: "host.minikube.internal:19092"
+                value: "host.docker.internal:19092"
               - name: KAFKA_GROUP_ID
                 value: "flink-pricing-job"
               - name: KAFKA_RIDE_REQUESTS_TOPIC

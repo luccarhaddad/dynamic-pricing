@@ -28,17 +28,47 @@ dev_start() {
     # Check Docker
     if ! docker info > /dev/null 2>&1; then
         echo -e "${RED}✗ Docker is not running${NC}"
-        echo "Please start Docker Desktop and run this script again."
+        echo "Please start Docker (Docker Desktop, OrbStack, or Docker Engine) and run this script again."
         exit 1
     fi
     echo -e "${GREEN}✓${NC} Docker is running"
     
-    # Stop old processes
-    echo -e "\n${YELLOW}[1/5]${NC} Stopping old processes..."
-    dev_stop_services
+    # Clean up any stale PID files (services run in Docker now)
+    echo -e "\n${YELLOW}[1/5]${NC} Cleaning up stale process files..."
+    rm -f "$PROJECT_ROOT"/logs/*.pid 2>/dev/null || true
     
     # Start infrastructure
     echo -e "\n${YELLOW}[2/5]${NC} Starting infrastructure (Kafka + PostgreSQL)..."
+    
+    # Load .env file if it exists (for KAFKA_EXTERNAL_HOST)
+    # If .env doesn't exist, auto-detect environment
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        set -a  # automatically export all variables
+        source "$PROJECT_ROOT/.env"
+        set +a
+    else
+        # Auto-detect environment and set KAFKA_EXTERNAL_HOST
+        echo "  ${YELLOW}⚠${NC} No .env file found, auto-detecting environment..."
+        source "$PROJECT_ROOT/scripts/utils.sh" 2>/dev/null || true
+        
+        # Detect Docker runtime and set appropriate hostname
+        local detected_host="host.docker.internal"
+        local os_type=$(uname -s)
+        
+        if docker info 2>/dev/null | grep -q "OrbStack"; then
+            detected_host="host.docker.internal"  # OrbStack supports host.docker.internal
+        elif docker info 2>/dev/null | grep -q "Docker Desktop"; then
+            detected_host="host.docker.internal"  # Docker Desktop supports host.docker.internal
+        elif [ "$os_type" = "Linux" ]; then
+            # On Linux, try to get Docker bridge IP
+            detected_host=$(docker network inspect bridge 2>/dev/null | grep -m1 "Gateway" | awk '{print $2}' | tr -d '",' || echo "172.17.0.1")
+        fi
+        
+        export KAFKA_EXTERNAL_HOST="$detected_host"
+        echo "  ${GREEN}✓${NC} Detected KAFKA_EXTERNAL_HOST=$detected_host"
+        echo "  ${YELLOW}💡${NC} Run './scripts/utils.sh detect-env' to create .env file for persistence"
+    fi
+    
     cd "$PROJECT_ROOT/infra"
     docker compose up -d
     cd "$PROJECT_ROOT"
@@ -70,37 +100,23 @@ dev_start() {
     done
     echo -e "${GREEN}✓${NC} Kafka topics created"
     
-    # Build applications
+    # Build applications (needed for Docker images)
     echo -e "\n${YELLOW}[4/5]${NC} Building Spring Boot applications..."
     "$PROJECT_ROOT/gradlew" -p "$PROJECT_ROOT" \
         :services:pricing-api:bootJar \
         :services:event-generator:bootJar -q
     echo -e "${GREEN}✓${NC} Build complete"
     
-    # Start services
-    echo -e "\n${YELLOW}[5/5]${NC} Starting services..."
+    # Clean up old PID files (services now run in Docker)
+    echo -e "\n${YELLOW}[5/5]${NC} Starting application services in Docker..."
     mkdir -p "$PROJECT_ROOT/logs"
+    rm -f "$PROJECT_ROOT/logs"/*.pid 2>/dev/null || true
     
-    # Pricing API
-    "$PROJECT_ROOT/gradlew" -p "$PROJECT_ROOT" :services:pricing-api:bootRun \
-        > "$PROJECT_ROOT/logs/pricing-api.log" 2>&1 &
-    echo $! > "$PROJECT_ROOT/logs/pricing-api.pid"
-    echo "  ✓ Pricing API started (PID $(cat "$PROJECT_ROOT/logs/pricing-api.pid"))"
-    sleep 3
-    
-    # Event Generator
-    "$PROJECT_ROOT/gradlew" -p "$PROJECT_ROOT" :services:event-generator:bootRun \
-        > "$PROJECT_ROOT/logs/event-generator.log" 2>&1 &
-    echo $! > "$PROJECT_ROOT/logs/event-generator.pid"
-    echo "  ✓ Event Generator started (PID $(cat "$PROJECT_ROOT/logs/event-generator.pid"))"
-    sleep 3
-    
-    # Frontend
-    cd "$PROJECT_ROOT/frontend"
-    python3 server.py > "$PROJECT_ROOT/logs/frontend.log" 2>&1 &
-    echo $! > "$PROJECT_ROOT/logs/frontend.pid"
-    cd "$PROJECT_ROOT"
-    echo "  ✓ Frontend started (PID $(cat "$PROJECT_ROOT/logs/frontend.pid"))"
+    # Services are now managed by docker-compose
+    echo "  ✓ Services starting in Docker containers..."
+    echo "  ✓ Pricing API (container)"
+    echo "  ✓ Event Generator (container)"
+    echo "  ✓ Frontend (container)"
     
     echo ""
     echo -e "${GREEN}✅ System started successfully!${NC}"
@@ -128,38 +144,31 @@ dev_start() {
 }
 
 #######################################
-# Stop services only (keep Docker)
+# Stop Docker containers using docker compose
+# All services run in Docker containers, so we stop them properly via docker compose
 #######################################
 dev_stop_services() {
-    # Kill Java processes by PID file
-    for pid_file in "$PROJECT_ROOT"/logs/*.pid; do
-        if [ -f "$pid_file" ]; then
-            PID=$(cat "$pid_file")
-            if kill -0 $PID 2>/dev/null; then
-                SERVICE_NAME=$(basename "$pid_file" .pid)
-                kill -TERM $PID 2>/dev/null || true
-                sleep 1
-                if kill -0 $PID 2>/dev/null; then
-                    kill -KILL $PID 2>/dev/null || true
-                fi
-            fi
-            rm "$pid_file"
-        fi
-    done
+    # Check Docker daemon is available
+    if ! docker info > /dev/null 2>&1; then
+        echo -e "${YELLOW}⚠${NC} Docker daemon not available, skipping container stop"
+        return 0
+    fi
     
-    # Kill by port (backup)
-    for port in 8081 8082 3000; do
-        PIDS=$(lsof -ti:$port 2>/dev/null || true)
-        if [ -n "$PIDS" ]; then
-            echo "$PIDS" | xargs kill -9 2>/dev/null || true
-        fi
-    done
+    # Stop Docker containers using docker compose
+    cd "$PROJECT_ROOT/infra"
+    if docker compose ps -q > /dev/null 2>&1; then
+        echo "  Stopping Docker containers..."
+        docker compose down --timeout 10 || {
+            echo -e "${YELLOW}⚠${NC} Some containers may still be stopping"
+        }
+    else
+        echo "  No containers running"
+    fi
+    cd "$PROJECT_ROOT"
     
-    # Kill by process name (backup)
-    pkill -f "flink-pricing-job" 2>/dev/null || true
-    pkill -f "com.pricing.api.PricingApplication" 2>/dev/null || true
-    pkill -f "com.pricing.generator.EventGeneratorApplication" 2>/dev/null || true
-    pkill -f "frontend/server.py" 2>/dev/null || true
+    # Clean up old PID files (legacy from when services ran as processes)
+    # Just remove the files, don't try to kill processes
+    rm -f "$PROJECT_ROOT"/logs/*.pid 2>/dev/null || true
 }
 
 #######################################
@@ -168,15 +177,8 @@ dev_stop_services() {
 dev_stop() {
     echo -e "${BLUE}🛑 Stopping Dynamic Pricing System${NC}"
     
+    # Stop Docker containers (this handles all services)
     dev_stop_services
-    
-    # Stop Docker infrastructure
-    if docker compose -f "$PROJECT_ROOT/infra/docker-compose.yml" ps > /dev/null 2>&1; then
-        cd "$PROJECT_ROOT/infra"
-        docker compose down
-        cd "$PROJECT_ROOT"
-        echo -e "${GREEN}✓${NC} Infrastructure stopped"
-    fi
     
     echo ""
     echo -e "${GREEN}✓ System stopped successfully${NC}"
@@ -189,31 +191,26 @@ dev_restart() {
     echo -e "${BLUE}🔄 Full System Restart - Clearing All State${NC}"
     echo "============================================="
     
-    # Stop services
-    echo -e "\n${YELLOW}[1/4]${NC} Stopping all services..."
-    dev_stop_services
-    echo -e "${GREEN}✓${NC} Services stopped"
-    
-    sleep 2
-    
-    # Remove Docker volumes to clear state
-    echo -e "\n${YELLOW}[2/4]${NC} Removing Docker volumes to clear state..."
-    cd "$PROJECT_ROOT/infra"
-    if docker compose ps -q > /dev/null 2>&1; then
-        docker compose down -v --remove-orphans 2>/dev/null || true
+    # Check Docker daemon is available
+    if ! docker info > /dev/null 2>&1; then
+        echo -e "${RED}✗ Docker daemon is not running${NC}"
+        echo "Please start Docker and run this script again."
+        exit 1
     fi
     
-    # Remove volumes explicitly
-    docker volume rm infra_kafka_data 2>/dev/null || true
-    docker volume rm infra_postgres_data 2>/dev/null || true
-    docker volume rm infra_flink_checkpoints 2>/dev/null || true
-    docker volume prune -f > /dev/null 2>&1 || true
-    
+    # Stop Docker containers first (with volume removal for clean restart)
+    echo -e "\n${YELLOW}[1/4]${NC} Stopping Docker containers and removing volumes..."
+    cd "$PROJECT_ROOT/infra"
+    if docker compose ps -q > /dev/null 2>&1; then
+        docker compose down -v --timeout 10 || {
+            echo -e "${YELLOW}⚠${NC} Some containers may still be stopping"
+        }
+    fi
     cd "$PROJECT_ROOT"
-    echo -e "${GREEN}✓${NC} Docker volumes removed"
+    echo -e "${GREEN}✓${NC} Containers stopped and volumes removed"
     
     # Clean up local files
-    echo -e "\n${YELLOW}[3/4]${NC} Cleaning local files..."
+    echo -e "\n${YELLOW}[2/4]${NC} Cleaning local files..."
     rm -rf "$PROJECT_ROOT/checkpoints" "$PROJECT_ROOT/savepoints" 2>/dev/null || true
     rm -f "$PROJECT_ROOT/logs"/*.log "$PROJECT_ROOT/logs"/*.pid 2>/dev/null || true
     mkdir -p "$PROJECT_ROOT/logs"
@@ -222,7 +219,7 @@ dev_restart() {
     sleep 2
     
     # Start system fresh
-    echo -e "\n${YELLOW}[4/4]${NC} Starting system with fresh state..."
+    echo -e "\n${YELLOW}[3/4]${NC} Starting system with fresh state..."
     dev_start
     
     echo ""
@@ -301,17 +298,17 @@ dev_status() {
         echo "  No containers running"
     fi
     
-    # Application services
-    echo -e "\n${YELLOW}Application Services:${NC}"
+    # Application services (running in Docker)
+    echo -e "\n${YELLOW}Application Services (Docker):${NC}"
     local all_running=true
     for service in pricing-api event-generator frontend; do
-        pid_file="$PROJECT_ROOT/logs/${service}.pid"
-        if [ -f "$pid_file" ]; then
-            PID=$(cat "$pid_file")
-            if kill -0 $PID 2>/dev/null; then
-                echo -e "  ${GREEN}✓${NC} $service (PID: $PID)"
+        if docker ps --format '{{.Names}}' | grep -q "^${service}$"; then
+            local status=$(docker inspect --format='{{.State.Status}}' "$service" 2>/dev/null)
+            local health=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no healthcheck{{end}}' "$service" 2>/dev/null)
+            if [ "$status" = "running" ]; then
+                echo -e "  ${GREEN}✓${NC} $service ($health)"
             else
-                echo -e "  ${RED}✗${NC} $service (not running)"
+                echo -e "  ${RED}✗${NC} $service ($status)"
                 all_running=false
             fi
         else

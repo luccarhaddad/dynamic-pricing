@@ -15,6 +15,12 @@ RUN mkdir -p /tmp/flink-plugins/s3-fs-hadoop && \
     curl -L -o flink-s3-fs-hadoop-1.17.2.jar \
       https://repo.maven.apache.org/maven2/org/apache/flink/flink-s3-fs-hadoop/1.17.2/flink-s3-fs-hadoop-1.17.2.jar
 
+# Download Prometheus metrics reporter for monitoring
+RUN mkdir -p /tmp/flink-libs && \
+    cd /tmp/flink-libs && \
+    curl -L -o flink-metrics-prometheus-1.17.2.jar \
+      https://repo.maven.apache.org/maven2/org/apache/flink/flink-metrics-prometheus/1.17.2/flink-metrics-prometheus-1.17.2.jar
+
 # Runtime stage - Use official Flink image
 FROM flink:1.17.2
 
@@ -22,6 +28,10 @@ FROM flink:1.17.2
 # Flink plugins must be in /opt/flink/plugins/<plugin-name>/ directory
 RUN mkdir -p /opt/flink/plugins/s3-fs-hadoop
 COPY --from=builder /tmp/flink-plugins/s3-fs-hadoop/*.jar /opt/flink/plugins/s3-fs-hadoop/
+
+# Install Prometheus metrics reporter
+# Metrics reporters must be in /opt/flink/lib/ directory
+COPY --from=builder /tmp/flink-libs/*.jar /opt/flink/lib/
 
 # Copy our application JAR
 COPY --from=builder /app/flink-pricing-job/build/libs/*.jar /opt/flink/usrlib/pricing-job.jar
