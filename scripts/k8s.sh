@@ -242,10 +242,20 @@ k8s_setup() {
         kubectl create namespace flink-operator 2>/dev/null || true
         
         echo "  Installing operator with Helm..."
-        helm install flink-kubernetes-operator \
-            flink-kubernetes-operator-1.7.0/flink-kubernetes-operator \
-            --namespace flink-operator \
-            --set webhook.create=false
+        local VALUES_FILE="$K8S_DIR/flink-operator/values.yaml"
+        if [ -f "$VALUES_FILE" ]; then
+            echo "  Using values file: $VALUES_FILE"
+            helm install flink-kubernetes-operator \
+                flink-kubernetes-operator-1.7.0/flink-kubernetes-operator \
+                --namespace flink-operator \
+                --values "$VALUES_FILE"
+        else
+            echo "  Using default values (no values file found)"
+            helm install flink-kubernetes-operator \
+                flink-kubernetes-operator-1.7.0/flink-kubernetes-operator \
+                --namespace flink-operator \
+                --set webhook.create=false
+        fi
         
         echo "  Waiting for operator to be ready..."
         kubectl wait --for=condition=ready --timeout=120s \

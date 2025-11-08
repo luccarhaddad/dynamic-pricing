@@ -1,0 +1,36 @@
+# Flink Kubernetes Operator Helm Values
+# This file persists resource limits and probe configurations to prevent restarts
+
+# Resource requests and limits for the operator pod
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Liveness probe configuration
+livenessProbe:
+  periodSeconds: 10
+  initialDelaySeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 5
+
+# Startup probe configuration
+startupProbe:
+  failureThreshold: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+
+# Readiness probe configuration
+readinessProbe:
+  periodSeconds: 5
+  initialDelaySeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Disable webhook (as per original installation)
+webhook:
+  create: false
+
