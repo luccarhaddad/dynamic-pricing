@@ -344,7 +344,53 @@ The system uses **processing time** semantics for real-time responsiveness:
 
 - **Available Ports**: 3000, 5432, 8080, 8081, 8082, 9093, 19092
 
-### 5.2 Quick Start
+### 5.2 Environment Configuration (IMPORTANT)
+
+#### Cross-Platform Compatibility
+
+This system supports **Docker Desktop**, **OrbStack**, **Rancher Desktop**, **Podman**, and works on **macOS**, **Windows**, and **Linux**. The Kafka broker needs to be accessible from both Docker Compose services and Kubernetes (Flink).
+
+**Automatic Configuration (Recommended):**
+
+```bash
+# Detect your environment and auto-configure
+./scripts/utils.sh detect-env
+```
+
+This script will:
+- Detect your operating system (macOS, Linux, Windows)
+- Identify your container runtime (Docker Desktop, OrbStack, Podman)
+- Create a `.env` file with the correct `KAFKA_EXTERNAL_HOST` setting
+
+**Manual Configuration (if needed):**
+
+If auto-detection doesn't work, create a `.env` file in the project root:
+
+```bash
+# For macOS (Docker Desktop or OrbStack)
+KAFKA_EXTERNAL_HOST=host.docker.internal
+
+# For Windows (Docker Desktop)
+KAFKA_EXTERNAL_HOST=host.docker.internal
+
+# For Linux (Docker)
+KAFKA_EXTERNAL_HOST=172.17.0.1  # Or your Docker bridge IP
+
+# For Linux (Podman)
+KAFKA_EXTERNAL_HOST=host.containers.internal
+```
+
+**Why This Matters:**
+
+Different container runtimes use different hostnames to access the host machine:
+- **Docker Desktop (Mac/Windows)**: `host.docker.internal` ✅
+- **OrbStack (Mac)**: `host.docker.internal` ✅  
+- **Podman (Linux)**: `host.containers.internal` ✅
+- **Docker (Linux)**: Bridge IP (typically `172.17.0.1`) ✅
+
+The Flink job running in Kubernetes needs to connect to Kafka running in Docker Compose. Without the correct hostname, the Flink job will fail with DNS resolution errors.
+
+### 5.3 Quick Start
 
 #### Step 1: Clone Repository
 ```bash
@@ -352,9 +398,21 @@ git clone <repository-url>
 cd dynamic-pricing
 ```
 
-#### Step 2: Start Infrastructure
+#### Step 2: Configure Environment (First Time Only)
 ```bash
-./scripts/start.sh
+# Auto-detect and configure for your platform
+./scripts/utils.sh detect-env
+
+# This creates a .env file with the correct settings
+# Review the settings if needed
+cat .env
+```
+
+> **Note**: This step is crucial for cross-platform compatibility. It ensures Kubernetes (Flink) can reach Kafka regardless of whether you're using Docker Desktop, OrbStack, or running on Linux.
+
+#### Step 3: Start Infrastructure
+```bash
+./scripts/dev.sh start
 ```
 
 This script performs the following operations:
@@ -367,9 +425,9 @@ This script performs the following operations:
 
 **Expected startup time**: 1-2 minutes
 
-#### Step 3: Verify System Health
+#### Step 4: Verify System Health
 ```bash
-./scripts/verify.sh
+./scripts/dev.sh status
 ```
 
 Expected output:
@@ -378,7 +436,16 @@ Expected output:
 - ✅ Database accessible
 - ✅ All services responding
 
-#### Step 4: Access Interfaces
+#### Step 5: Deploy Flink to Kubernetes
+```bash
+# One-time setup (installs Flink operator, creates namespaces)
+./scripts/k8s.sh setup
+
+# Deploy the Flink pricing job
+./scripts/k8s.sh deploy
+```
+
+#### Step 6: Access Interfaces
 
 | Interface | URL | Purpose |
 |-----------|-----|---------|
