@@ -54,12 +54,12 @@ spec:
     heartbeat.interval: "10000"
     
     # TaskManager Configuration
-    taskmanager.numberOfTaskSlots: "8"
+    taskmanager.numberOfTaskSlots: "4"
     parallelism.default: "8"
     
     # Memory Configuration
-    taskmanager.memory.process.size: 2048m
-    jobmanager.memory.process.size: 2048m
+    taskmanager.memory.process.size: 1024m
+    jobmanager.memory.process.size: 1024m
     
     # Prometheus Metrics Configuration
     metrics.reporter.prometheus.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
@@ -79,7 +79,7 @@ spec:
   jobManager:
     replicas: 2
     resource:
-      memory: "2048m"
+      memory: "1024m"
       cpu: 1
     
     # Pod template for JobManager
@@ -145,8 +145,8 @@ spec:
   taskManager:
     replicas: 2  # Number of TaskManager pods (can scale horizontally)
     resource:
-      memory: "2048m"
-      cpu: 2
+      memory: "1024m"
+      cpu: 1
     
     # Pod template for TaskManager
     podTemplate:
