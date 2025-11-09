@@ -333,3 +333,7 @@ reports/
 *-uber.jar
 !flink-pricing-job/build/libs/.gitkeep
 fault-tolerance-evidence/
+
+# Python virtual environment
+.venv/
+venv/
