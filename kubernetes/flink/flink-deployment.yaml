@@ -46,7 +46,7 @@ spec:
     
     # Restart Strategy
     restart-strategy: fixed-delay
-    restart-strategy.fixed-delay.attempts: "3"
+    restart-strategy.fixed-delay.attempts: "10"
     restart-strategy.fixed-delay.delay: 10s
     
     # Heartbeat Configuration
