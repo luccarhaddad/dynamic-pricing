@@ -7,9 +7,9 @@ A production-grade, distributed dynamic pricing system for ride-sharing platform
 **Key Features:**
 - ⚡ Real-time pricing with <200ms end-to-end latency
 - 🔄 Fault-tolerant stream processing (recovery times: 41-167s)
-- 📊 Comprehensive monitoring (Prometheus + Grafana)
 - 🎯 Deterministic testing framework for reproducible research
 - ☸️ Cloud-native deployment with Kubernetes High Availability
+- 📊 Disaster recovery validated (100% system loss → 167s automatic recovery)
 
 ---
 

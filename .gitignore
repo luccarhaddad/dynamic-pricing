@@ -332,3 +332,4 @@ reports/
 *-all.jar
 *-uber.jar
 !flink-pricing-job/build/libs/.gitkeep
+fault-tolerance-evidence/
