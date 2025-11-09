@@ -96,54 +96,25 @@ start_all_port_forwards() {
     
     check_prerequisites
     
-    # Check if services exist before port-forwarding
-    local flink_ready=false
-    local monitoring_ready=false
-    
-    # Flink operator creates service with pattern: <deployment-name>-rest
+    # Check if Flink service exists
     if kubectl get svc -n flink pricing-job-rest &> /dev/null; then
-        flink_ready=true
-    fi
-    
-    if kubectl get svc -n monitoring grafana &> /dev/null; then
-        monitoring_ready=true
-    fi
-    
-    if kubectl get svc -n monitoring prometheus &> /dev/null; then
-        monitoring_ready=true
-    fi
-    
-    # Start port-forwards
-    if [ "$flink_ready" = true ]; then
         # Use port 9081 for Flink UI to avoid conflict with pricing-api on 8081
         start_port_forward "flink" "pricing-job-rest" "9081" "8081" "flink-ui"
-    else
-        echo -e "${YELLOW}⚠${NC} Flink not deployed, skipping Flink UI port-forward"
-    fi
-    
-    if [ "$monitoring_ready" = true ]; then
-        start_port_forward "monitoring" "grafana" "3001" "3000" "grafana"
-        start_port_forward "monitoring" "prometheus" "9090" "9090" "prometheus"
-    else
-        echo -e "${YELLOW}⚠${NC} Monitoring not deployed, skipping monitoring port-forwards"
-    fi
-    
-    echo ""
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}Port Forwards Active${NC}"
-    echo -e "${GREEN}========================================${NC}"
-    echo ""
-    if [ "$flink_ready" = true ]; then
+        
+        echo ""
+        echo -e "${GREEN}========================================${NC}"
+        echo -e "${GREEN}Port Forward Active${NC}"
+        echo -e "${GREEN}========================================${NC}"
+        echo ""
         echo "  Flink UI:    http://localhost:9081"
+        echo ""
+        echo "To stop port-forward:"
+        echo "  ./scripts/k8s.sh ports stop"
+        echo ""
+    else
+        echo -e "${YELLOW}⚠${NC} Flink not deployed. Deploy first:"
+        echo "  ./scripts/k8s.sh deploy"
     fi
-    if [ "$monitoring_ready" = true ]; then
-        echo "  Grafana:     http://localhost:3001 (admin/admin)"
-        echo "  Prometheus:  http://localhost:9090"
-    fi
-    echo ""
-    echo "To stop all port-forwards:"
-    echo "  ./scripts/k8s.sh ports stop"
-    echo ""
 }
 
 #######################################
@@ -495,77 +466,9 @@ k8s_status() {
     echo -e "\n${YELLOW}Flink Operator:${NC}"
     kubectl get pods -n flink-operator 2>/dev/null || echo "  Operator not installed"
     
-    # Monitoring
-    echo -e "\n${YELLOW}Monitoring:${NC}"
-    kubectl get pods -n monitoring 2>/dev/null || echo "  Monitoring not deployed"
-    
     echo ""
 }
 
-#######################################
-# Deploy monitoring
-#######################################
-k8s_monitoring() {
-    echo -e "${BLUE}📊 Deploying Monitoring Stack${NC}"
-    echo "=========================================="
-    
-    check_prerequisites
-    
-    # Ensure namespace exists
-    echo -e "\n${YELLOW}[1/3]${NC} Creating monitoring namespace..."
-    kubectl apply -f "$K8S_DIR/namespaces.yaml"
-    echo -e "${GREEN}✓${NC} Namespace ready"
-    
-    # Deploy PVCs for persistence
-    echo -e "\n${YELLOW}[2/3]${NC} Creating persistent storage..."
-    if [ -f "$K8S_DIR/monitoring/storage-pvcs.yaml" ]; then
-        kubectl apply -f "$K8S_DIR/monitoring/storage-pvcs.yaml"
-        echo -e "${GREEN}✓${NC} Storage created"
-    else
-        echo -e "${YELLOW}⚠${NC} storage-pvcs.yaml not found, skipping"
-    fi
-    
-    # Deploy Prometheus and Grafana
-    echo -e "\n${YELLOW}[3/3]${NC} Deploying Prometheus and Grafana..."
-    kubectl apply -f "$K8S_DIR/monitoring/prometheus-deployment.yaml"
-    kubectl apply -f "$K8S_DIR/monitoring/grafana-dashboard-configmap.yaml"
-    kubectl apply -f "$K8S_DIR/monitoring/grafana-deployment.yaml"
-    
-    echo "  Waiting for pods to be ready..."
-    kubectl wait --for=condition=ready --timeout=120s \
-        pod -l app=prometheus -n monitoring 2>/dev/null || {
-        echo -e "${YELLOW}⚠${NC} Prometheus not ready yet"
-    }
-    kubectl wait --for=condition=ready --timeout=120s \
-        pod -l app=grafana -n monitoring 2>/dev/null || {
-        echo -e "${YELLOW}⚠${NC} Grafana not ready yet"
-    }
-    
-    echo -e "${GREEN}✓${NC} Monitoring deployed"
-    
-    # Summary
-    echo -e "\n${GREEN}========================================${NC}"
-    echo -e "${GREEN}Monitoring Deployed!${NC}"
-    echo -e "${GREEN}========================================${NC}"
-    echo ""
-    
-    # Start port-forwarding automatically
-    echo -e "${YELLOW}Setting up port-forwarding...${NC}"
-    start_port_forward "monitoring" "prometheus" "9090" "9090" "prometheus"
-    start_port_forward "monitoring" "grafana" "3001" "3000" "grafana"
-    
-    echo ""
-    echo "Quick access:"
-    echo "  Prometheus:  http://localhost:9090"
-    echo "  Grafana:     http://localhost:3001 (admin/admin)"
-    echo ""
-    echo "Or use NodePort (if available):"
-    echo "  http://<node-ip>:30002"
-    echo ""
-    echo "Stop port-forwarding:"
-    echo "  ./scripts/k8s.sh ports stop"
-    echo ""
-}
 
 #######################################
 # Test fault tolerance - Academic Research Edition
@@ -1255,9 +1158,6 @@ case "${1:-}" in
     status)
         k8s_status
         ;;
-    monitoring)
-        k8s_monitoring
-        ;;
     test-ft)
         k8s_test_ft "${2:-all}"
         ;;
@@ -1283,7 +1183,7 @@ case "${1:-}" in
         esac
         ;;
     *)
-        echo "Usage: $0 {setup|deploy|undeploy|logs|status|monitoring|test-ft|ports}"
+        echo "Usage: $0 {setup|deploy|undeploy|logs|status|test-ft|ports}"
         echo ""
         echo "Commands:"
         echo "  setup       - One-time Kubernetes setup (operator, namespaces, MinIO)"
@@ -1291,8 +1191,7 @@ case "${1:-}" in
         echo "  undeploy    - Remove Flink job from Kubernetes"
         echo "  logs        - View logs (specify: jobmanager, taskmanager, operator)"
         echo "  status      - Check Kubernetes resources"
-        echo "  monitoring  - Deploy Prometheus and Grafana (auto-starts port-forwarding)"
-        echo "  test-ft     - Test fault tolerance (1-5 or all scenarios)"
+        echo "  test-ft     - Test fault tolerance (1-6 or all scenarios)"
         echo "  ports       - Manage port-forwarding (start|stop)"
         echo ""
         echo "Examples:"
@@ -1301,9 +1200,9 @@ case "${1:-}" in
         echo "  $0 logs jobmanager        # View JobManager logs"
         echo "  $0 status                 # Check everything"
         echo "  $0 test-ft 2              # Test scenario 2 (active JM failure)"
-        echo "  $0 test-ft all            # Run all 5 fault tolerance scenarios"
-        echo "  $0 ports start            # Start all port-forwards"
-        echo "  $0 ports stop             # Stop all port-forwards"
+        echo "  $0 test-ft all            # Run all 6 fault tolerance scenarios"
+        echo "  $0 ports start            # Start Flink UI port-forward"
+        echo "  $0 ports stop             # Stop port-forwards"
         exit 1
         ;;
 esac
