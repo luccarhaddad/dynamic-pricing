@@ -26,6 +26,77 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+#######################################
+# Show usage/help
+#######################################
+show_usage() {
+    echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║                                                               ║${NC}"
+    echo -e "${BLUE}║       ACADEMIC FAULT TOLERANCE STATISTICAL ANALYSIS           ║${NC}"
+    echo -e "${BLUE}║                                                               ║${NC}"
+    echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}USAGE:${NC}"
+    echo "  ./scripts/academic-analysis.sh [iterations] [scenarios]"
+    echo ""
+    echo -e "${YELLOW}ARGUMENTS:${NC}"
+    echo "  iterations  - Number of times to run each scenario (default: 10)"
+    echo "  scenarios   - Space-separated scenario numbers or 'all' (default: all)"
+    echo ""
+    echo -e "${YELLOW}SCENARIOS:${NC}"
+    echo "  1 - Standby JobManager Failure"
+    echo "  2 - Active JobManager Failure (HA Failover)"
+    echo "  3 - Complete JobManager Failure"
+    echo "  4 - Single TaskManager Failure"
+    echo "  5 - Complete TaskManager Failure"
+    echo "  6 - Complete System Failure (Disaster Recovery)"
+    echo ""
+    echo -e "${YELLOW}EXAMPLES:${NC}"
+    echo "  ./scripts/academic-analysis.sh"
+    echo "      → Run all scenarios 10 times each (default)"
+    echo ""
+    echo "  ./scripts/academic-analysis.sh 5 all"
+    echo "      → Run all scenarios 5 times each"
+    echo ""
+    echo "  ./scripts/academic-analysis.sh 10 \"1 2 6\""
+    echo "      → Run scenarios 1, 2, and 6 ten times each"
+    echo ""
+    echo "  ./scripts/academic-analysis.sh 3 2"
+    echo "      → Run scenario 2 three times"
+    echo ""
+    echo -e "${YELLOW}OUTPUT:${NC}"
+    echo "  Results will be saved in: academic-analysis-results/"
+    echo "  • statistical_summary.csv - Aggregated statistics"
+    echo "  • raw_data.csv - All individual run data"
+    echo "  • STATISTICAL_REPORT_*.md - Full analysis report"
+    echo ""
+    echo -e "${YELLOW}ESTIMATED TIME:${NC}"
+    echo "  ~2 minutes per test run"
+    echo "  Default (10 iterations × 6 scenarios): ~120 minutes (2 hours)"
+    echo ""
+}
+
+# Check for help flag
+if [[ "$1" == "-h" || "$1" == "--help" || "$1" == "help" ]]; then
+    show_usage
+    exit 0
+fi
+
+# Show usage info when no arguments provided
+if [ $# -eq 0 ]; then
+    show_usage
+    echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}No arguments provided. Will use defaults:${NC}"
+    echo "  • Iterations: 10"
+    echo "  • Scenarios: all (1 2 3 4 5 6)"
+    echo "  • Total runs: 60 tests"
+    echo "  • Estimated time: ~120 minutes (2 hours)"
+    echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    read -p "Press Enter to continue with defaults, or Ctrl+C to cancel..."
+    echo ""
+fi
+
 # Default values
 ITERATIONS=${1:-10}
 SCENARIOS=${2:-"1 2 3 4 5 6"}

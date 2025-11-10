@@ -330,11 +330,31 @@ k8s_deploy() {
     kubectl apply -f "$K8S_DIR/flink/flink-deployment.yaml"
     
     echo "  Waiting for Flink job to start (this may take 1-2 minutes)..."
-    kubectl wait --for=condition=ready --timeout=300s \
-        flinkdeployment/pricing-job -n flink 2>/dev/null || {
-        echo -e "${YELLOW}⚠${NC} FlinkDeployment not ready within timeout"
+    # Wait for FlinkDeployment to reach STABLE lifecycle state
+    local timeout=300
+    local elapsed=0
+    local interval=5
+    while [ $elapsed -lt $timeout ]; do
+        local lifecycle_state=$(kubectl get flinkdeployment pricing-job -n flink -o jsonpath='{.status.lifecycleState}' 2>/dev/null)
+        local job_state=$(kubectl get flinkdeployment pricing-job -n flink -o jsonpath='{.status.jobStatus.state}' 2>/dev/null)
+        
+        if [[ "$lifecycle_state" == "STABLE" && "$job_state" == "RUNNING" ]]; then
+            echo -e "${GREEN}✓${NC} FlinkDeployment is ready (STABLE/RUNNING)"
+            break
+        fi
+        
+        if [ $elapsed -gt 0 ]; then
+            echo -n "."
+        fi
+        sleep $interval
+        elapsed=$((elapsed + interval))
+    done
+    
+    if [ $elapsed -ge $timeout ]; then
+        echo -e "\n${YELLOW}⚠${NC} FlinkDeployment not ready within timeout"
+        echo "Current state: lifecycleState=$lifecycle_state, jobStatus=$job_state"
         echo "Check status with: kubectl get flinkdeployment -n flink"
-    }
+    fi
     
     # Summary
     echo -e "\n${GREEN}========================================${NC}"
