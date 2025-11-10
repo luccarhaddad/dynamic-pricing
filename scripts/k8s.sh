@@ -911,6 +911,57 @@ test_all_tm_failure() {
     echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
 }
 
+# Helper: Check Kubernetes cluster health
+check_cluster_health() {
+    echo "  🏥 Checking Kubernetes cluster health..."
+    
+    # Test API server responsiveness
+    local max_attempts=5
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if kubectl get nodes --request-timeout=5s > /dev/null 2>&1; then
+            echo -e "     ${GREEN}✓${NC} API server responding (attempt $attempt/$max_attempts)"
+            return 0
+        else
+            echo -e "     ${YELLOW}⚠${NC} API server not responding (attempt $attempt/$max_attempts)"
+            sleep 5
+            attempt=$((attempt + 1))
+        fi
+    done
+    
+    echo -e "     ${RED}✗${NC} API server unresponsive after $max_attempts attempts"
+    return 1
+}
+
+# Helper: Wait for cluster to stabilize after complete failure
+wait_for_cluster_stability() {
+    echo "  ⏳ Waiting for cluster to stabilize..."
+    
+    # Give the cluster more time to recover from complete pod deletion
+    local stability_wait=60
+    echo "     Cooldown period: ${stability_wait} seconds"
+    
+    for i in $(seq 1 12); do
+        sleep 5
+        if kubectl get pods -n flink --request-timeout=5s > /dev/null 2>&1; then
+            echo -n "."
+        else
+            echo -e "\n     ${YELLOW}⚠${NC} API temporarily unavailable at ${i}x5s"
+        fi
+    done
+    echo ""
+    
+    # Verify API is stable
+    if check_cluster_health; then
+        echo -e "     ${GREEN}✓${NC} Cluster stabilized"
+        return 0
+    else
+        echo -e "     ${RED}✗${NC} Cluster still unstable"
+        return 1
+    fi
+}
+
 # Test Scenario 6: Complete System Failure (All Pods)
 test_complete_system_failure() {
     echo -e "\n${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
@@ -922,6 +973,21 @@ test_complete_system_failure() {
     echo "   System must bootstrap entirely from S3 checkpoints"
     echo "   Tests absolute worst-case failure scenario"
     echo ""
+    echo "⚠️  Note: This test is resource-intensive and may stress the cluster."
+    echo ""
+    
+    # Pre-flight check: Verify cluster health before destructive test
+    echo -e "\n${YELLOW}[Pre-flight]${NC} Verifying cluster health..."
+    if ! check_cluster_health; then
+        echo -e "${RED}✗ Cluster unhealthy before test${NC}"
+        echo "  Recommendation: Restart your Kubernetes cluster"
+        echo "    For Minikube: minikube stop && minikube start"
+        echo "    For Docker Desktop: Restart Docker Desktop"
+        echo ""
+        echo "  Skipping Scenario 6 to prevent cluster damage."
+        return 1
+    fi
+    echo -e "${GREEN}✓${NC} Cluster healthy, proceeding with test"
     
     echo -e "\n${YELLOW}[Phase 1]${NC} Collecting baseline evidence..."
     collect_evidence "scenario6_complete_system" "01_baseline"
@@ -942,13 +1008,37 @@ test_complete_system_failure() {
     collect_evidence "scenario6_complete_system" "02_immediately_after_failure"
     
     echo "  ⏳ Monitoring complete system recreation (120 seconds)..."
+    echo "     (kubectl timeouts are expected and normal during complete outage)"
+    
+    # Disable exit-on-error for monitoring phase (API may be temporarily unavailable)
+    set +e
+    
+    local api_timeout_count=0
     for i in {1..24}; do
         sleep 5
-        local RUNNING_JM=$(kubectl get pods -n flink -l component=jobmanager --field-selector=status.phase=Running -o name | wc -l)
-        local RUNNING_TM=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Running -o name | wc -l)
-        local PENDING=$(kubectl get pods -n flink --field-selector=status.phase=Pending -o name | wc -l)
-        echo "     [${i}5s] JM: $RUNNING_JM, TM: $RUNNING_TM, Pending: $PENDING"
+        
+        # Try to query with timeout - if it fails, don't crash the script
+        local RUNNING_JM=$(kubectl get pods -n flink -l component=jobmanager --field-selector=status.phase=Running -o name --request-timeout=3s 2>/dev/null | wc -l)
+        local RUNNING_TM=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Running -o name --request-timeout=3s 2>/dev/null | wc -l)
+        local PENDING=$(kubectl get pods -n flink --field-selector=status.phase=Pending -o name --request-timeout=3s 2>/dev/null | wc -l)
+        
+        # Check if kubectl actually responded
+        if [ $? -eq 0 ]; then
+            echo "     [${i}5s] JM: $RUNNING_JM, TM: $RUNNING_TM, Pending: $PENDING"
+            api_timeout_count=0  # Reset timeout counter on success
+        else
+            api_timeout_count=$((api_timeout_count + 1))
+            echo "     [${i}5s] API temporarily unavailable (timeout #${api_timeout_count})"
+            
+            # If API is consistently unavailable, warn but continue
+            if [ $api_timeout_count -ge 10 ]; then
+                echo -e "     ${YELLOW}⚠${NC} Extended API unavailability detected - cluster may be stressed"
+                echo "     Continuing monitoring with longer timeout..."
+            fi
+        fi
     done
+    
+    set -e  # Re-enable exit-on-error
     
     collect_evidence "scenario6_complete_system" "03_during_recovery"
     
@@ -978,25 +1068,37 @@ test_complete_system_failure() {
     collect_evidence "scenario6_complete_system" "04_post_recovery"
     
     echo -e "\n${YELLOW}[Phase 5]${NC} Verification checks..."
-    local JM_COUNT=$(kubectl get pods -n flink -l component=jobmanager --field-selector=status.phase=Running -o name | wc -l)
-    local TM_COUNT=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Running -o name | wc -l)
+    local JM_COUNT=$(kubectl get pods -n flink -l component=jobmanager --field-selector=status.phase=Running -o name 2>/dev/null | wc -l)
+    local TM_COUNT=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Running -o name 2>/dev/null | wc -l)
     local TOTAL_PODS=$((JM_COUNT + TM_COUNT))
     echo "  📊 Running JobManagers: $JM_COUNT (expected: 2)"
     echo "  📊 Running TaskManagers: $TM_COUNT (expected: 2)"
     echo "  📊 Total Flink Pods: $TOTAL_PODS (expected: 4)"
     
+    # Disable exit-on-error for API checks (API may still be unstable)
+    set +e
     kubectl port-forward -n flink svc/pricing-job-rest 9081:8081 > /dev/null 2>&1 &
     local PF_PID=$!
     sleep 3
-    local JOB_STATE=$(curl -s http://localhost:9081/jobs 2>/dev/null | jq -r '.jobs[0].status' 2>/dev/null)
-    local JOB_ID=$(curl -s http://localhost:9081/jobs 2>/dev/null | jq -r '.jobs[0].id' 2>/dev/null)
+    local JOB_STATE=$(curl -s --max-time 5 http://localhost:9081/jobs 2>/dev/null | jq -r '.jobs[0].status' 2>/dev/null)
+    local JOB_ID=$(curl -s --max-time 5 http://localhost:9081/jobs 2>/dev/null | jq -r '.jobs[0].id' 2>/dev/null)
     echo "  📊 Job Status: $JOB_STATE"
     
     if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
-        local CHECKPOINT_INFO=$(curl -s "http://localhost:9081/jobs/${JOB_ID}/checkpoints" 2>/dev/null | jq '.latest.restored' 2>/dev/null)
+        local CHECKPOINT_INFO=$(curl -s --max-time 5 "http://localhost:9081/jobs/${JOB_ID}/checkpoints" 2>/dev/null | jq '.latest.restored' 2>/dev/null)
         echo "  📊 Restored from checkpoint: $CHECKPOINT_INFO"
     fi
     kill $PF_PID 2>/dev/null
+    set -e  # Re-enable exit-on-error
+    
+    # Post-test cluster health check
+    echo -e "\n${YELLOW}[Post-test]${NC} Verifying cluster health after complete failure..."
+    if wait_for_cluster_stability; then
+        echo -e "${GREEN}✓${NC} Cluster recovered successfully from complete system failure"
+    else
+        echo -e "${YELLOW}⚠${NC} Cluster may be degraded - recommend longer cooldown before next test"
+        echo "  Suggestion: Wait 2-3 minutes or restart cluster before next iteration"
+    fi
     
     echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║  ✅ Scenario 6 Complete - Complete System Recovery        ║${NC}"
@@ -1061,7 +1163,8 @@ k8s_test_ft() {
             ;;
         all)
             echo -e "${YELLOW}⚠  Running all 6 scenarios sequentially...${NC}"
-            echo "   This will take approximately 20-25 minutes."
+            echo "   This will take approximately 25-30 minutes."
+            echo "   Note: Extended cooldown after Scenario 6 (complete system failure)"
             echo "   Press Ctrl+C within 5 seconds to cancel..."
             sleep 5
             
@@ -1085,7 +1188,15 @@ k8s_test_ft() {
             echo -e "\n⏳ Cooldown period (30 seconds)...\n"
             sleep 30
             
+            # Scenario 6 is the most destructive - needs extended cooldown
             test_complete_system_failure
+            
+            echo -e "\n⏳ ${YELLOW}Extended cooldown after complete system failure (90 seconds)...${NC}"
+            echo "   Allowing cluster to fully stabilize..."
+            if ! wait_for_cluster_stability; then
+                echo -e "${YELLOW}⚠  Warning: Cluster may not be fully stable${NC}"
+                echo "   Recommend: Wait 2-3 minutes before re-running tests"
+            fi
             ;;
         *)
             echo -e "${RED}✗ Unknown scenario: $scenario${NC}"
