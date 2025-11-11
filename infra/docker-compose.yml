@@ -133,27 +133,6 @@ services:
             retries: 3
             start_period: 40s
 
-    # flink-job:
-    #     build:
-    #         context: ..
-    #         dockerfile: flink-pricing-job/Dockerfile
-    #     container_name: flink-job
-    #     environment:
-    #         KAFKA_BROKERS: kafka:9092
-    #         CHECKPOINT_DIR: "file:///app/checkpoints"
-    #     volumes:
-    #         - flink_checkpoints:/app/checkpoints
-    #     depends_on:
-    #         kafka:
-    #             condition: service_healthy
-    #         kafka-init:
-    #             condition: service_completed_successfully
-    #         event-generator:
-    #             condition: service_started
-    #     networks:
-    #         - pricing-network
-    #     restart: unless-stopped
-
     frontend:
         build:
             context: ..
@@ -178,8 +157,6 @@ volumes:
         driver: local
     postgres_data:
         driver: local
-    # flink_checkpoints:
-    #     driver: local
 
 networks:
     pricing-network:
