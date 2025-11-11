@@ -881,54 +881,130 @@ test_all_tm_failure() {
     sleep 5
     collect_evidence "scenario5_all_tm" "02_immediately_after_failure"
     
-    echo "  ⏳ Monitoring recreation (60 seconds)..."
-    for i in {1..12}; do
+    echo "  ⏳ Monitoring pod recreation (monitoring for 120 seconds)..."
+    local pods_ready=false
+    for i in {1..24}; do
         sleep 5
-        local RUNNING_TM=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Running -o name | wc -l)
-        local PENDING_TM=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Pending -o name | wc -l)
+        local RUNNING_TM=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Running -o name 2>/dev/null | wc -l)
+        local PENDING_TM=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Pending -o name 2>/dev/null | wc -l)
         echo "     [${i}5s] Running: $RUNNING_TM, Pending: $PENDING_TM"
+        
+        # Check if we have the expected number of TaskManagers ready
+        if [ "$RUNNING_TM" -ge 2 ]; then
+            pods_ready=true
+            echo -e "     ${GREEN}✓${NC} TaskManager pods are ready"
+            break
+        fi
     done
     
     collect_evidence "scenario5_all_tm" "03_during_recovery"
     
-    echo -e "\n${YELLOW}[Phase 4]${NC} Verifying full recovery..."
-    if kubectl wait --for=condition=ready --timeout=180s pod -l component=taskmanager -n flink 2>/dev/null; then
-        local RECOVERY_TIME=$(date +%s)
-        local DOWNTIME=$((RECOVERY_TIME - DELETE_TIME))
-        echo -e "${GREEN}✅ Full TaskManager recovery successful${NC}"
-        echo "   Recovery time: ${DOWNTIME} seconds"
+    echo -e "\n${YELLOW}[Phase 4]${NC} Verifying TaskManager pod recovery..."
+    if [ "$pods_ready" = true ]; then
+        local POD_RECOVERY_TIME=$(date +%s)
+        local POD_DOWNTIME=$((POD_RECOVERY_TIME - DELETE_TIME))
+        echo -e "${GREEN}✅ TaskManager pods recovered${NC}"
+        echo "   Pod recovery time: ${POD_DOWNTIME} seconds"
     else
-        echo -e "${RED}❌ Recovery timeout${NC}"
+        echo -e "${RED}❌ TaskManager pods did not recover in time${NC}"
+        echo "   This may indicate insufficient retry window or cluster issues"
     fi
     
-    # Wait for job to stabilize
-    echo "  ⏳ Waiting for job to stabilize (30 seconds)..."
-    sleep 30
+    # Wait for job to stabilize and verify job state
+    echo -e "\n${YELLOW}[Phase 5]${NC} Waiting for job to achieve RUNNING state..."
+    echo "  ⏳ Monitoring job state (up to 120 seconds)..."
+    
+    local job_running=false
+    local final_job_state="UNKNOWN"
+    
+    for i in {1..24}; do
+        sleep 5
+        local JOB_STATE=$(kubectl get flinkdeployment pricing-job -n flink -o jsonpath='{.status.jobStatus.state}' 2>/dev/null)
+        
+        if [ -n "$JOB_STATE" ]; then
+            echo "     [${i}5s] Job State: $JOB_STATE"
+            final_job_state=$JOB_STATE
+            
+            if [ "$JOB_STATE" = "RUNNING" ]; then
+                job_running=true
+                local JOB_RECOVERY_TIME=$(date +%s)
+                local TOTAL_RECOVERY_TIME=$((JOB_RECOVERY_TIME - DELETE_TIME))
+                echo -e "     ${GREEN}✓${NC} Job achieved RUNNING state"
+                echo -e "     ${GREEN}✓${NC} Total recovery time: ${TOTAL_RECOVERY_TIME} seconds"
+                break
+            elif [ "$JOB_STATE" = "FAILED" ]; then
+                echo -e "     ${RED}✗${NC} Job entered FAILED state - restart attempts may be exhausted"
+                break
+            fi
+        else
+            echo "     [${i}5s] Unable to query job state (may be temporarily unavailable)"
+        fi
+    done
     
     collect_evidence "scenario5_all_tm" "04_post_recovery"
     
-    echo -e "\n${YELLOW}[Phase 5]${NC} Verification checks..."
-    local JM_COUNT=$(kubectl get pods -n flink -l component=jobmanager --field-selector=status.phase=Running -o name | wc -l)
-    local TM_COUNT=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Running -o name | wc -l)
+    echo -e "\n${YELLOW}[Phase 6]${NC} Final verification checks..."
+    local JM_COUNT=$(kubectl get pods -n flink -l component=jobmanager --field-selector=status.phase=Running -o name 2>/dev/null | wc -l)
+    local TM_COUNT=$(kubectl get pods -n flink -l component=taskmanager --field-selector=status.phase=Running -o name 2>/dev/null | wc -l)
     echo "  📊 Running JobManagers: $JM_COUNT (expected: 2)"
     echo "  📊 Running TaskManagers: $TM_COUNT (expected: 2)"
+    echo "  📊 Final Job State: $final_job_state"
     
-    kubectl port-forward -n flink svc/pricing-job-rest 9081:8081 > /dev/null 2>&1 &
+    # Use a unique port to avoid conflicts
+    local TEMP_PORT=9082
+    kubectl port-forward -n flink svc/pricing-job-rest $TEMP_PORT:8081 > /dev/null 2>&1 &
     local PF_PID=$!
     sleep 3
-    local JOB_STATE=$(curl -s http://localhost:9081/jobs 2>/dev/null | jq -r '.jobs[0].status' 2>/dev/null)
-    local JOB_ID=$(curl -s http://localhost:9081/jobs 2>/dev/null | jq -r '.jobs[0].id' 2>/dev/null)
-    echo "  📊 Job Status: $JOB_STATE"
     
-    if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
-        local RESTART_COUNT=$(curl -s "http://localhost:9081/jobs/${JOB_ID}" 2>/dev/null | jq '.vertices[].tasks.FAILED // 0' 2>/dev/null | paste -sd+ | bc)
-        echo "  📊 Task failures during recovery: $RESTART_COUNT"
+    if curl -s --max-time 3 http://localhost:$TEMP_PORT/jobs > /dev/null 2>&1; then
+        local JOB_ID=$(curl -s http://localhost:$TEMP_PORT/jobs 2>/dev/null | jq -r '.jobs[0].id' 2>/dev/null)
+        if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
+            local JOB_DETAILS=$(curl -s "http://localhost:$TEMP_PORT/jobs/${JOB_ID}" 2>/dev/null)
+            local RESTART_COUNT=$(echo "$JOB_DETAILS" | jq '.vertices[].tasks.FAILED // 0' 2>/dev/null | paste -sd+ 2>/dev/null | bc 2>/dev/null || echo "0")
+            echo "  📊 Task failures during recovery: $RESTART_COUNT"
+            
+            # Get metrics about the job
+            local TOTAL_SLOTS=$(curl -s http://localhost:$TEMP_PORT/taskmanagers 2>/dev/null | jq '[.taskmanagers[].slotsNumber] | add' 2>/dev/null)
+            echo "  📊 Total slots available: ${TOTAL_SLOTS:-N/A}"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠${NC}  Unable to connect to Flink REST API"
     fi
     kill $PF_PID 2>/dev/null
     
-    echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║  ✅ Scenario 5 Complete - Full TM Recovery Verified       ║${NC}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+    # Determine test outcome
+    echo ""
+    if [ "$job_running" = true ] && [ "$pods_ready" = true ]; then
+        echo -e "\n${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║  ✅ Scenario 5 PASSED - Full Recovery Achieved            ║${NC}"
+        echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
+        return 0
+    elif [ "$final_job_state" = "FAILED" ]; then
+        echo -e "\n${RED}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║  ❌ Scenario 5 FAILED - Job exhausted restart attempts    ║${NC}"
+        echo -e "${RED}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${YELLOW}📝 Diagnosis:${NC}"
+        echo "   The job entered FAILED state, likely due to:"
+        echo "   1. Restart attempts exhausted (configured: 10 attempts)"
+        echo "   2. Pod initialization time exceeded retry window"
+        echo "   3. Previous test runs consumed restart attempts"
+        echo ""
+        echo -e "${YELLOW}💡 Recommendations:${NC}"
+        echo "   1. Redeploy the job to reset restart counter:"
+        echo "      ./scripts/k8s.sh undeploy && ./scripts/k8s.sh deploy"
+        echo "   2. Consider increasing restart attempts if pod init is slow"
+        echo "   3. Ensure adequate cooldown between test runs"
+        return 1
+    else
+        echo -e "\n${YELLOW}╔═══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║  ⚠ Scenario 5 INCONCLUSIVE - Timeout or partial recovery ║${NC}"
+        echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo "   Final state: $final_job_state"
+        echo "   TaskManager pods ready: $pods_ready"
+        return 1
+    fi
 }
 
 # Helper: Check Kubernetes cluster health
